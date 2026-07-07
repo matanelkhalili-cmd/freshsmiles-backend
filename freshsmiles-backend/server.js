@@ -382,6 +382,95 @@ app.post('/api/invoices/:id/confirm', async (req, res) => {
   }
 });
 
+// ---- Rose (Vapi voice assistant) tool endpoints ----
+//
+// This is how Rose actually does things during a phone call. Vapi sends a
+// POST here whenever the assistant decides to call one of its configured
+// tools, and expects a response matching each tool call by its ID. Today
+// these functions read/write our own database; once Dentrix Ascend API
+// access is approved, the *inside* of these functions gets swapped to call
+// Dentrix instead — Rose's side of the contract never has to change.
+
+const VOICE_TIME_SLOTS = ['9:00 AM', '10:00 AM', '11:00 AM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM'];
+
+async function handleCheckAvailability(args) {
+  const date = args.date;
+  if (!date) return 'I need a specific date to check availability.';
+  const result = await pool.query('SELECT time FROM bookings WHERE date = $1', [date]);
+  const taken = result.rows.map(r => r.time);
+  const available = VOICE_TIME_SLOTS.filter(t => !taken.includes(t));
+  if (available.length === 0) return `There are no open slots on ${date}. Would you like me to check another day?`;
+  return `On ${date}, these times are open: ${available.join(', ')}.`;
+}
+
+async function handleBookAppointment(args) {
+  const { date, time, name, phone, email } = args;
+  if (!date || !time || !name || !phone) {
+    return 'I need a date, time, patient name, and phone number to book this appointment.';
+  }
+  const existing = await pool.query('SELECT id FROM bookings WHERE date = $1 AND time = $2', [date, time]);
+  if (existing.rows.length > 0) {
+    return `Sorry, ${time} on ${date} was just taken. Could you pick a different time?`;
+  }
+  await pool.query(
+    `INSERT INTO bookings (date, time, name, phone, email, reason, booked_at) VALUES ($1, $2, $3, $4, $5, '', $6)`,
+    [date, time, name, phone, email || '', new Date()]
+  );
+  if (email) {
+    await sendEmail(
+      email,
+      `Your appointment is confirmed — ${formatDateLabel(date)}`,
+      `<p>Hi ${name.split(' ')[0]},</p><p>Your appointment at <strong>Fresh Smiles Dental</strong> is confirmed for <strong>${formatDateLabel(date)}</strong> at <strong>${time}</strong>.</p>`
+    );
+  }
+  return `You're all set — booked for ${formatDateLabel(date)} at ${time}.`;
+}
+
+async function handleGetPatientInfo(args) {
+  const phone = args.phone;
+  if (!phone) return 'I need a phone number to look that up.';
+  const bookingRes = await pool.query('SELECT * FROM bookings WHERE phone = $1 ORDER BY date DESC LIMIT 1', [phone]);
+  const invoiceRes = await pool.query('SELECT * FROM invoices WHERE phone = $1 ORDER BY created_at DESC LIMIT 1', [phone]);
+  if (bookingRes.rows.length === 0 && invoiceRes.rows.length === 0) {
+    return "I don't have a record for that phone number yet — this may be a new patient.";
+  }
+  const name = (invoiceRes.rows[0] && invoiceRes.rows[0].name) || (bookingRes.rows[0] && bookingRes.rows[0].name);
+  const inv = invoiceRes.rows[0];
+  const insuranceText = inv && inv.insurance_provider
+    ? `Insurance on file: ${inv.insurance_provider}, member ID ${inv.insurance_member_id || 'not given'}.`
+    : 'No insurance on file.';
+  return `Found ${name}. ${insuranceText}`;
+}
+
+app.post('/api/vapi/tools', async (req, res) => {
+  try {
+    const toolCalls = (req.body.message && req.body.message.toolCalls) || [];
+    const results = [];
+    for (const call of toolCalls) {
+      const fnName = call.function && call.function.name;
+      let args = call.function && call.function.arguments;
+      if (typeof args === 'string') {
+        try { args = JSON.parse(args); } catch (e) { args = {}; }
+      }
+      args = args || {};
+
+      let result;
+      try {
+        if (fnName === 'check_availability') result = await handleCheckAvailability(args);
+        else if (fnName === 'book_appointment') result = await handleBookAppointment(args);
+        else if (fnName === 'get_patient_info') result = await handleGetPatientInfo(args);
+        else result = `I don't recognize the function "${fnName}".`;
+      } catch (innerErr) {
+        result = `Something went wrong on our end: ${innerErr.message}`;
+      }
+      results.push({ toolCallId: call.id, result });
+    }
+    res.json({ results });
+  } catch (err) {
+    res.status(500).json({ error: 'Tool call failed: ' + err.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 initDB()
   .then(() => {
