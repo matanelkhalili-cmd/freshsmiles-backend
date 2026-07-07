@@ -130,9 +130,48 @@ function invoiceRowToJson(row) {
   };
 }
 
+// ---- Staff authentication ----
+//
+// Protects the staff dashboard and staff-only data endpoints with a simple
+// shared username/password (HTTP Basic Auth). This is intentionally simple —
+// one shared login for the office, not per-employee accounts — but it's
+// real protection: without it, anyone with the URL could see every
+// patient's name, phone, insurance, and revenue.
+const STAFF_USERNAME = process.env.STAFF_USERNAME || 'staff';
+const STAFF_PASSWORD = process.env.STAFF_PASSWORD;
+
+function requireStaffAuth(req, res, next) {
+  if (!STAFF_PASSWORD) {
+    // Fail closed: if no password has been configured, staff routes are
+    // locked out entirely rather than silently left open.
+    return res.status(503).send('Staff area is not yet configured. Set STAFF_PASSWORD on the server.');
+  }
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Basic ')) {
+    res.set('WWW-Authenticate', 'Basic realm="Fresh Smiles Staff"');
+    return res.status(401).send('Authentication required.');
+  }
+  const decoded = Buffer.from(authHeader.slice(6), 'base64').toString('utf8');
+  const separatorIndex = decoded.indexOf(':');
+  const user = decoded.slice(0, separatorIndex);
+  const pass = decoded.slice(separatorIndex + 1);
+  if (user === STAFF_USERNAME && pass === STAFF_PASSWORD) {
+    return next();
+  }
+  res.set('WWW-Authenticate', 'Basic realm="Fresh Smiles Staff"');
+  return res.status(401).send('Invalid credentials.');
+}
+
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// This route must come BEFORE express.static, so requesting staff.html
+// directly always requires login rather than being served as a plain file.
+app.get('/staff.html', requireStaffAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'staff.html'));
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ---- Booking endpoints ----
@@ -186,7 +225,7 @@ app.post('/api/bookings', async (req, res) => {
 });
 
 // Staff view: all upcoming bookings across all dates
-app.get('/api/bookings', async (req, res) => {
+app.get('/api/bookings', requireStaffAuth, async (req, res) => {
   try {
     const query = req.query.includeCancelled === 'true'
       ? 'SELECT * FROM bookings ORDER BY date, time'
@@ -241,7 +280,7 @@ app.post('/api/bookings/:date/checkin', async (req, res) => {
 // ---- Invoice / billing endpoints ----
 
 // Staff: create a balance
-app.post('/api/invoices', async (req, res) => {
+app.post('/api/invoices', requireStaffAuth, async (req, res) => {
   const { name, phone, email, amount, insuranceProvider, insuranceMemberId, insuranceGroupNumber, insuranceNotes } = req.body;
   if (!name || !amount || amount <= 0) {
     return res.status(400).json({ error: 'name and a positive amount are required.' });
@@ -263,7 +302,7 @@ app.post('/api/invoices', async (req, res) => {
 
 // Staff: edit insurance details on an existing balance (e.g. patient calls
 // back later with their member ID they didn't have at first)
-app.post('/api/invoices/:id/insurance', async (req, res) => {
+app.post('/api/invoices/:id/insurance', requireStaffAuth, async (req, res) => {
   const { insuranceProvider, insuranceMemberId, insuranceGroupNumber, insuranceNotes } = req.body;
   try {
     const existing = await pool.query('SELECT insurance_status FROM invoices WHERE id = $1', [req.params.id.toUpperCase()]);
@@ -286,7 +325,7 @@ const VALID_INSURANCE_STATUSES = ['not_billed', 'pending', 'paid', 'denied'];
 
 // Staff: update just the insurance status on an existing balance
 // (e.g. after hearing back from the insurer)
-app.post('/api/invoices/:id/insurance-status', async (req, res) => {
+app.post('/api/invoices/:id/insurance-status', requireStaffAuth, async (req, res) => {
   const { status } = req.body;
   if (!VALID_INSURANCE_STATUSES.includes(status)) {
     return res.status(400).json({ error: 'Invalid insurance status.' });
@@ -304,7 +343,7 @@ app.post('/api/invoices/:id/insurance-status', async (req, res) => {
 });
 
 // Staff: list all invoices
-app.get('/api/invoices', async (req, res) => {
+app.get('/api/invoices', requireStaffAuth, async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM invoices ORDER BY created_at');
     res.json(result.rows.map(invoiceRowToJson));
