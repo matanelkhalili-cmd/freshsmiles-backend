@@ -1,0 +1,17 @@
+{
+  "name": "freshsmiles-backend",
+  "version": "1.0.0",
+  "description": "Backend for Fresh Smiles Dental booking and billing",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "stripe": "^16.2.0",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
