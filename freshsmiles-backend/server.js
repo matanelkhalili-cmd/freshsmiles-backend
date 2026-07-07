@@ -28,6 +28,13 @@ if (!RESEND_API_KEY) {
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 const EMAIL_FROM = 'Fresh Smiles Dental <appointments@freshsmilesnow.com>';
 
+// Where the office itself gets notified whenever a new appointment is booked
+// (by a patient on the website, or by Rose over the phone).
+const OFFICE_EMAIL = process.env.OFFICE_EMAIL;
+if (!OFFICE_EMAIL) {
+  console.warn('Warning: OFFICE_EMAIL is not set. The office will not receive new-booking notifications.');
+}
+
 // Sending an email is never allowed to break the actual booking/payment
 // request it's attached to — if Resend isn't configured yet, or the send
 // fails for any reason, we log it and move on rather than throwing.
@@ -38,6 +45,27 @@ async function sendEmail(to, subject, html) {
   } catch (err) {
     console.error('Email send failed:', err.message);
   }
+}
+
+// Notifies the office whenever a new appointment is booked, whether that
+// happened on the website or through Rose on the phone. `source` is just
+// a label so staff can tell at a glance how the booking came in.
+async function sendOfficeBookingNotification(booking, source) {
+  if (!OFFICE_EMAIL) return;
+  const dateLabel = formatDateLabel(booking.date);
+  await sendEmail(
+    OFFICE_EMAIL,
+    `New appointment booked — ${booking.name}, ${dateLabel}`,
+    `<p>A new appointment was just booked${source ? ' (' + source + ')' : ''}:</p>
+     <p>
+       <strong>Patient:</strong> ${booking.name}<br>
+       <strong>Phone:</strong> ${booking.phone || 'not given'}<br>
+       <strong>Email:</strong> ${booking.email || 'not given'}<br>
+       <strong>Date:</strong> ${dateLabel}<br>
+       <strong>Time:</strong> ${booking.time}<br>
+       <strong>Reason:</strong> ${booking.reason || 'not given'}
+     </p>`
+  );
 }
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -199,6 +227,9 @@ app.post('/api/bookings', async (req, res) => {
   }
   try {
     const existing = await pool.query('SELECT id FROM bookings WHERE date = $1 AND time = $2 AND cancelled = FALSE', [date, time]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'That time slot was just taken. Please pick another.' });
+    }
     const bookedAt = new Date();
     const result = await pool.query(
       `INSERT INTO bookings (date, time, name, phone, email, reason, insurance_provider, insurance_member_id, booked_at)
@@ -219,6 +250,7 @@ app.post('/api/bookings', async (req, res) => {
          <p>See you soon!</p>`
       );
     }
+    await sendOfficeBookingNotification({ ...booking, date }, 'website');
   } catch (err) {
     res.status(500).json({ error: 'Database error: ' + err.message });
   }
@@ -498,6 +530,7 @@ async function handleBookAppointment(args) {
       `<p>Hi ${name.split(' ')[0]},</p><p>Your appointment at <strong>Fresh Smiles Dental</strong> is confirmed for <strong>${formatDateLabel(date)}</strong> at <strong>${time}</strong>.</p>`
     );
   }
+  await sendOfficeBookingNotification({ date, time, name, phone, email, reason }, 'phone — Rose');
   return `You're all set — booked for ${formatDateLabel(date)} at ${time}.`;
 }
 
