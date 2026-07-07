@@ -87,6 +87,7 @@ async function initDB() {
   await pool.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS insurance_status TEXT NOT NULL DEFAULT 'not_billed';`);
   await pool.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS insurance_group_number TEXT;`);
   await pool.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS insurance_notes TEXT;`);
+  await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled BOOLEAN DEFAULT FALSE;`);
   console.log('Database ready.');
 }
 
@@ -139,7 +140,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Get all bookings for one date (used to grey out taken time slots)
 app.get('/api/bookings/:date', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM bookings WHERE date = $1 ORDER BY time', [req.params.date]);
+    const result = await pool.query('SELECT * FROM bookings WHERE date = $1 AND cancelled = FALSE ORDER BY time', [req.params.date]);
     res.json(result.rows.map(bookingRowToJson));
   } catch (err) {
     res.status(500).json({ error: 'Database error: ' + err.message });
@@ -158,10 +159,7 @@ app.post('/api/bookings', async (req, res) => {
     return res.status(400).json({ error: 'date, time, name, and phone are required.' });
   }
   try {
-    const existing = await pool.query('SELECT id FROM bookings WHERE date = $1 AND time = $2', [date, time]);
-    if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'That time slot was just taken. Please pick another.' });
-    }
+    const existing = await pool.query('SELECT id FROM bookings WHERE date = $1 AND time = $2 AND cancelled = FALSE', [date, time]);
     const bookedAt = new Date();
     const result = await pool.query(
       `INSERT INTO bookings (date, time, name, phone, email, reason, insurance_provider, insurance_member_id, booked_at)
@@ -190,7 +188,7 @@ app.post('/api/bookings', async (req, res) => {
 // Staff view: all upcoming bookings across all dates
 app.get('/api/bookings', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM bookings ORDER BY date, time');
+    const result = await pool.query('SELECT * FROM bookings WHERE cancelled = FALSE ORDER BY date, time');
     const all = result.rows.map(row => ({ ...bookingRowToJson(row), date: row.date }));
     res.json(all);
   } catch (err) {
@@ -211,7 +209,7 @@ app.post('/api/bookings/:date/checkin', async (req, res) => {
   const trimmedName = name.trim();
   try {
     const existing = await pool.query(
-      'SELECT * FROM bookings WHERE date = $1 AND LOWER(TRIM(name)) = LOWER($2)',
+      'SELECT * FROM bookings WHERE date = $1 AND LOWER(TRIM(name)) = LOWER($2) AND cancelled = FALSE',
       [date, trimmedName]
     );
     if (existing.rows.length > 0) {
@@ -424,7 +422,7 @@ function timeSlotToMinutes(slot) {
 }
 
   if (!date) return 'I need a specific date to check availability.';
-  const result = await pool.query('SELECT time FROM bookings WHERE date = $1', [date]);
+  const result = await pool.query('SELECT time FROM bookings WHERE date = $1 AND cancelled = FALSE', [date]);
   const taken = result.rows.map(r => r.time);
   let available = VOICE_TIME_SLOTS.filter(t => !taken.includes(t));
 
@@ -443,7 +441,7 @@ async function handleBookAppointment(args) {
   if (!date || !time || !name || !phone) {
     return 'I need a date, time, patient name, and phone number to book this appointment.';
   }
-  const existing = await pool.query('SELECT id FROM bookings WHERE date = $1 AND time = $2', [date, time]);
+  const existing = await pool.query('SELECT id FROM bookings WHERE date = $1 AND time = $2 AND cancelled = FALSE', [date, time]);
   if (existing.rows.length > 0) {
     return `Sorry, ${time} on ${date} was just taken. Could you pick a different time?`;
   }
@@ -464,7 +462,7 @@ async function handleBookAppointment(args) {
 async function handleGetPatientInfo(args) {
   const phone = args.phone;
   if (!phone) return 'I need a phone number to look that up.';
-  const bookingRes = await pool.query('SELECT * FROM bookings WHERE phone = $1 ORDER BY booked_at DESC LIMIT 1', [phone]);
+  const bookingRes = await pool.query('SELECT * FROM bookings WHERE phone = $1 AND cancelled = FALSE ORDER BY booked_at DESC LIMIT 1', [phone]);
   const invoiceRes = await pool.query('SELECT * FROM invoices WHERE phone = $1 ORDER BY created_at DESC LIMIT 1', [phone]);
   if (bookingRes.rows.length === 0 && invoiceRes.rows.length === 0) {
     return "I don't have a record for that phone number yet — this may be a new patient.";
@@ -492,7 +490,7 @@ async function handleSaveInsuranceInfo(args) {
   if (!insuranceProvider) return "I need at least the insurance provider name to save this.";
   const result = await pool.query(
     `UPDATE bookings SET insurance_provider = $1, insurance_member_id = $2
-     WHERE phone = $3 AND id = (SELECT id FROM bookings WHERE phone = $3 ORDER BY booked_at DESC LIMIT 1)
+     WHERE phone = $3 AND cancelled = FALSE AND id = (SELECT id FROM bookings WHERE phone = $3 AND cancelled = FALSE ORDER BY booked_at DESC LIMIT 1)
      RETURNING *`,
     [insuranceProvider, insuranceMemberId || '', phone]
   );
@@ -500,6 +498,34 @@ async function handleSaveInsuranceInfo(args) {
     return "I couldn't find a booking for that phone number to attach the insurance info to. Let them know staff will need to add it manually.";
   }
   return `Saved — ${insuranceProvider}${insuranceMemberId ? ', member ID ' + insuranceMemberId : ''} is now on file for this patient's appointment.`;
+}
+
+// Actually cancels a real appointment — frees up the time slot for someone
+// else, and keeps the record (marked cancelled) rather than deleting it,
+// so staff can still see it happened.
+async function handleCancelAppointment(args) {
+  const { phone, date } = args;
+  if (!phone) return "I need a phone number to find the appointment to cancel.";
+  let result;
+  if (date) {
+    result = await pool.query(
+      'SELECT * FROM bookings WHERE phone = $1 AND date = $2 AND cancelled = FALSE',
+      [phone, date]
+    );
+  } else {
+    result = await pool.query(
+      `SELECT * FROM bookings WHERE phone = $1 AND cancelled = FALSE
+       AND date >= (SELECT to_char(now() AT TIME ZONE 'America/New_York', 'YYYY-MM-DD'))
+       ORDER BY date ASC LIMIT 1`,
+      [phone]
+    );
+  }
+  if (result.rows.length === 0) {
+    return `I couldn't find an upcoming appointment for that phone number${date ? ' on ' + date : ''}. Could you double check the number?`;
+  }
+  const booking = result.rows[0];
+  await pool.query('UPDATE bookings SET cancelled = TRUE WHERE id = $1', [booking.id]);
+  return `Done — the appointment on ${formatDateLabel(booking.date)} at ${booking.time} has been cancelled.`;
 }
 
 app.post('/api/vapi/tools', async (req, res) => {
@@ -564,6 +590,15 @@ app.get('/api/vapi/patient-info', async (req, res) => {
 app.post('/api/vapi/save-insurance-info', async (req, res) => {
   try {
     const message = await handleSaveInsuranceInfo(req.body);
+    res.json({ message });
+  } catch (err) {
+    res.json({ message: `Something went wrong: ${err.message}` });
+  }
+});
+
+app.post('/api/vapi/cancel-appointment', async (req, res) => {
+  try {
+    const message = await handleCancelAppointment(req.body);
     res.json({ message });
   } catch (err) {
     res.json({ message: `Something went wrong: ${err.message}` });
