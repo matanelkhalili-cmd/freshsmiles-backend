@@ -395,16 +395,51 @@ const VOICE_TIME_SLOTS = ['9:00 AM', '10:00 AM', '11:00 AM', '1:00 PM', '2:00 PM
 
 async function handleCheckAvailability(args) {
   const date = args.date;
+// Gets the current date/time in the office's actual timezone (Eastern),
+// regardless of what timezone this server happens to be running in.
+function getNowInOfficeTimezone() {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  }).formatToParts(now);
+  const map = {};
+  parts.forEach(p => { map[p.type] = p.value; });
+  return {
+    dateStr: `${map.year}-${map.month}-${map.day}`,
+    minutesSinceMidnight: parseInt(map.hour, 10) * 60 + parseInt(map.minute, 10)
+  };
+}
+
+function timeSlotToMinutes(slot) {
+  const match = slot.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!match) return 0;
+  let hour = parseInt(match[1], 10);
+  const minute = parseInt(match[2], 10);
+  const meridiem = match[3].toUpperCase();
+  if (meridiem === 'PM' && hour !== 12) hour += 12;
+  if (meridiem === 'AM' && hour === 12) hour = 0;
+  return hour * 60 + minute;
+}
+
   if (!date) return 'I need a specific date to check availability.';
   const result = await pool.query('SELECT time FROM bookings WHERE date = $1', [date]);
   const taken = result.rows.map(r => r.time);
-  const available = VOICE_TIME_SLOTS.filter(t => !taken.includes(t));
-  if (available.length === 0) return `There are no open slots on ${date}. Would you like me to check another day?`;
+  let available = VOICE_TIME_SLOTS.filter(t => !taken.includes(t));
+
+  // If checking today, don't offer times that have already passed.
+  const now = getNowInOfficeTimezone();
+  if (date === now.dateStr) {
+    available = available.filter(t => timeSlotToMinutes(t) > now.minutesSinceMidnight);
+  }
+
+  if (available.length === 0) return `There are no more open slots on ${date}. Would you like me to check another day?`;
   return `On ${date}, these times are open: ${available.join(', ')}.`;
 }
 
 async function handleBookAppointment(args) {
-  const { date, time, name, phone, email } = args;
+  const { date, time, name, phone, email, reason } = args;
   if (!date || !time || !name || !phone) {
     return 'I need a date, time, patient name, and phone number to book this appointment.';
   }
@@ -413,8 +448,8 @@ async function handleBookAppointment(args) {
     return `Sorry, ${time} on ${date} was just taken. Could you pick a different time?`;
   }
   await pool.query(
-    `INSERT INTO bookings (date, time, name, phone, email, reason, booked_at) VALUES ($1, $2, $3, $4, $5, '', $6)`,
-    [date, time, name, phone, email || '', new Date()]
+    `INSERT INTO bookings (date, time, name, phone, email, reason, booked_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [date, time, name, phone, email || '', reason || '', new Date()]
   );
   if (email) {
     await sendEmail(
