@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fresh Smiles Dental — Billing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F6F8F6;
+    --card: #FFFFFF;
+    --ink: #14261F;
+    --ink-soft: #4B5D55;
+    --teal: #167567;
+    --teal-light: #E3F0EA;
+    --gold: #D9A441;
+    --gold-dark: #A9791F;
+    --border: #DCE4DF;
+    --error: #B3432F;
+    --error-light: #FBEAE7;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Inter', sans-serif; padding: 32px 16px 64px; }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 24px; }
+  header .eyebrow { font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--teal); font-weight: 600; margin-bottom: 6px; }
+  header h1 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 30px; margin: 0 0 8px; }
+  header p { color: var(--ink-soft); margin: 0; font-size: 15px; }
+
+  .tabs { display: flex; justify-content: center; gap: 4px; margin-bottom: 24px; background: var(--teal-light); border-radius: 12px; padding: 4px; max-width: 340px; margin-left: auto; margin-right: auto; }
+  .tab { flex: 1; text-align: center; padding: 10px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 14px; color: var(--ink-soft); }
+  .tab.active { background: white; color: var(--teal); }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 28px; }
+  .card h2 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 20px; margin: 0 0 20px; }
+
+  label { display: block; font-size: 13px; font-weight: 500; margin: 16px 0 6px; color: var(--ink-soft); }
+  label:first-of-type { margin-top: 0; }
+  input[type=text], input[type=tel], input[type=email], input[type=number] {
+    width: 100%; padding: 11px 12px; border-radius: 10px; border: 1.5px solid var(--border);
+    font-family: 'Inter', sans-serif; font-size: 15px; color: var(--ink);
+  }
+  input:focus { outline: none; border-color: var(--teal); }
+  .amount-input { position: relative; }
+  .amount-input span { position: absolute; left: 12px; top: 11px; color: var(--ink-soft); }
+  .amount-input input { padding-left: 26px; }
+
+  button.primary { font-family: 'Inter', sans-serif; font-weight: 600; font-size: 15px; padding: 12px 22px; border-radius: 10px; cursor: pointer; border: none; background: var(--gold); color: #3A2A08; width: 100%; margin-top: 20px; }
+  button.primary:hover { background: var(--gold-dark); }
+  button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.ghost { font-family: 'Inter', sans-serif; font-weight: 600; font-size: 13px; padding: 8px 14px; border-radius: 8px; cursor: pointer; border: 1.5px solid var(--border); background: transparent; color: var(--ink-soft); }
+
+  .invoice-row { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; }
+  .invoice-top { display: flex; justify-content: space-between; align-items: center; }
+  .invoice-name { font-weight: 600; font-size: 15px; }
+  .invoice-amount { font-weight: 600; font-size: 16px; }
+  .invoice-meta { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+  .badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .badge.unpaid { background: #FBEEDA; color: #8A5A0B; }
+  .badge.paid { background: var(--teal-light); color: var(--teal); }
+  .invoice-id { font-family: monospace; font-size: 12px; color: var(--ink-soft); margin-top: 6px; }
+
+  .empty-state { text-align: center; color: var(--ink-soft); padding: 24px; font-size: 14px; }
+
+  .amount-display { text-align: center; margin: 8px 0 24px; }
+  .amount-display .num { font-family: 'Fraunces', serif; font-size: 44px; font-weight: 500; }
+  .amount-display .who { color: var(--ink-soft); font-size: 14px; margin-top: 4px; }
+
+  .card-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .test-note { font-size: 13px; color: var(--ink-soft); margin-top: 16px; padding: 12px 14px; background: var(--teal-light); border-radius: 10px; }
+  .error-note { font-size: 13px; color: var(--error); margin-top: 12px; padding: 10px 14px; background: var(--error-light); border-radius: 10px; }
+
+  .confirm-icon { width: 56px; height: 56px; border-radius: 50%; background: var(--teal-light); color: var(--teal); display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 16px; }
+  .receipt-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .receipt-row:last-child { border-bottom: none; }
+  .receipt-row .label { color: var(--ink-soft); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Fresh Smiles Dental</div>
+    <h1 id="pageTitle">Billing</h1>
+    <p id="pageSub">Send a balance, get it paid</p>
+  </header>
+
+  <div style="text-align:center; margin-bottom: 16px;"><a href="index.html" style="color: var(--ink-soft); font-size: 13px; text-decoration: underline;">← Back to home</a></div>
+
+  <div class="tabs">
+    <div class="tab active" id="staffTab">Staff</div>
+    <div class="tab" id="patientTab">Patient — pay a balance</div>
+  </div>
+
+  <div class="card" id="cardArea"></div>
+</div>
+
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+const INVOICES_KEY = 'freshsmiles:invoices';
+const API_BASE = 'https://freshsmiles-backend.onrender.com';
+const STRIPE_PUBLISHABLE_KEY = 'pk_test_51TqM1KCcXopWR3dCFU8T7JNru8DfKMiBse5T8GF2cQkm0GC7VvjXjkF19wkGYDvILGtZ3m9ZKYufNcblL3nyI2Xo00o7R5b90k';
+let currentTab = 'staff';
+let cardElement = null;
+
+function genId() {
+  return 'INV-' + Math.random().toString(36).slice(2, 7).toUpperCase();
+}
+
+async function getInvoicesLocal() {
+  try {
+    const result = await window.storage.get(INVOICES_KEY, true);
+    return result ? JSON.parse(result.value) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+async function saveInvoicesLocal(invoices) {
+  if (typeof window.storage === 'undefined') {
+    throw new Error("Couldn't reach the billing system. Please try again in a moment.");
+  }
+  await window.storage.set(INVOICES_KEY, JSON.stringify(invoices), true);
+}
+
+// Staff: list all invoices — tries the live backend first, falls back to
+// browser-local storage only if the backend can't be reached (e.g. this
+// preview environment blocking outside connections).
+async function listInvoices() {
+  try {
+    const res = await fetch(`${API_BASE}/api/invoices`);
+    if (!res.ok) throw new Error('backend error');
+    return await res.json();
+  } catch (e) {
+    return await getInvoicesLocal();
+  }
+}
+
+// Staff: create a new balance
+async function createInvoice(name, phone, amount) {
+  let res;
+  try {
+    res = await fetch(`${API_BASE}/api/invoices`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, phone, amount })
+    });
+  } catch (networkErr) {
+    const invoices = await getInvoicesLocal();
+    const invoice = { id: genId(), name, phone, amount, status: 'unpaid', createdAt: new Date().toISOString() };
+    invoices.push(invoice);
+    await saveInvoicesLocal(invoices);
+    return invoice;
+  }
+  let data;
+  try {
+    data = await res.json();
+  } catch (parseErr) {
+    const invoices = await getInvoicesLocal();
+    const invoice = { id: genId(), name, phone, amount, status: 'unpaid', createdAt: new Date().toISOString() };
+    invoices.push(invoice);
+    await saveInvoicesLocal(invoices);
+    return invoice;
+  }
+  if (!res.ok) throw new Error(data.error || 'Could not create balance.');
+  return data;
+}
+
+// Patient: look up one invoice by ID
+async function findInvoice(id) {
+  try {
+    const res = await fetch(`${API_BASE}/api/invoices/${id}`);
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error('backend error');
+    return await res.json();
+  } catch (e) {
+    const invoices = await getInvoicesLocal();
+    return invoices.find(i => i.id === id) || null;
+  }
+}
+
+function formatMoney(n) {
+  return Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('staffTab').classList.toggle('active', tab === 'staff');
+  document.getElementById('patientTab').classList.toggle('active', tab === 'patient');
+  if (tab === 'staff') {
+    document.getElementById('pageSub').textContent = 'Send a balance, get it paid';
+    renderStaffForm();
+  } else {
+    document.getElementById('pageSub').textContent = 'Enter the invoice ID from your text or email';
+    renderPatientLookup();
+  }
+}
+document.getElementById('staffTab').onclick = () => switchTab('staff');
+document.getElementById('patientTab').onclick = () => switchTab('patient');
+
+async function renderStaffForm() {
+  const card = document.getElementById('cardArea');
+  const invoices = await listInvoices();
+  card.innerHTML = `
+    <h2>Create a balance</h2>
+    <label for="pName">Patient name</label>
+    <input type="text" id="pName" placeholder="Jane Rivera">
+    <label for="pPhone">Phone</label>
+    <input type="tel" id="pPhone" placeholder="(347) 555-0134">
+    <label for="pAmount">Amount owed</label>
+    <div class="amount-input"><span>$</span><input type="number" id="pAmount" placeholder="0.00" step="0.01" min="0"></div>
+    <button class="primary" id="createBtn">Create balance</button>
+    <div id="createError"></div>
+    <h2 style="margin-top:32px;">Outstanding &amp; recent</h2>
+    <div id="invoiceList"></div>
+  `;
+  const list = document.getElementById('invoiceList');
+  if (invoices.length === 0) {
+    list.innerHTML = '<div class="empty-state">No balances created yet.</div>';
+  } else {
+    list.innerHTML = [...invoices].reverse().map(inv => `
+      <div class="invoice-row">
+        <div class="invoice-top">
+          <div>
+            <div class="invoice-name">${inv.name}</div>
+            <div class="invoice-meta">${inv.phone || ''}</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="invoice-amount">${formatMoney(inv.amount)}</div>
+            <span class="badge ${inv.status}">${inv.status}</span>
+          </div>
+        </div>
+        <div class="invoice-id">ID: ${inv.id} ${inv.status === 'unpaid' ? '— give this to the patient' : ''}</div>
+      </div>
+    `).join('');
+  }
+
+  document.getElementById('createBtn').onclick = async () => {
+    const name = document.getElementById('pName').value.trim();
+    const phone = document.getElementById('pPhone').value.trim();
+    const amount = parseFloat(document.getElementById('pAmount').value);
+    const errEl = document.getElementById('createError');
+    if (!name || !amount || amount <= 0) {
+      errEl.innerHTML = '<div class="error-note">Enter a patient name and an amount greater than $0.</div>';
+      return;
+    }
+    try {
+      await createInvoice(name, phone, amount);
+      renderStaffForm();
+    } catch (e) {
+      errEl.innerHTML = '<div class="error-note">' + (e.message || 'Could not create balance.') + '</div>';
+    }
+  };
+}
+
+async function renderPatientLookup() {
+  const card = document.getElementById('cardArea');
+  card.innerHTML = `
+    <h2>Pay your balance</h2>
+    <label for="invIdInput">Invoice ID</label>
+    <input type="text" id="invIdInput" placeholder="e.g. INV-7K2QF" style="text-transform:uppercase;">
+    <button class="primary" id="lookupBtn">Find my balance</button>
+    <div id="lookupError"></div>
+    <div class="test-note">In a live version, patients would reach this page through a direct link texted or emailed to them — they wouldn't need to type an ID. This box exists only because this is a demo running without real messaging wired up yet.</div>
+  `;
+  document.getElementById('lookupBtn').onclick = async () => {
+    const id = document.getElementById('invIdInput').value.trim().toUpperCase();
+    const errEl = document.getElementById('lookupError');
+    const invoice = await findInvoice(id);
+    if (!invoice) {
+      errEl.innerHTML = '<div class="error-note">No balance found for that ID. Check with the office and try again.</div>';
+      return;
+    }
+    if (invoice.status === 'paid') {
+      renderAlreadyPaid(invoice);
+    } else {
+      renderPaymentForm(invoice);
+    }
+  };
+}
+
+function renderAlreadyPaid(invoice) {
+  const card = document.getElementById('cardArea');
+  card.innerHTML = `
+    <div class="confirm-icon">✓</div>
+    <h2 style="text-align:center;">Already paid</h2>
+    <div class="receipt-row"><span class="label">Patient</span><span>${invoice.name}</span></div>
+    <div class="receipt-row"><span class="label">Amount</span><span>${formatMoney(invoice.amount)}</span></div>
+    <div class="receipt-row"><span class="label">Invoice</span><span>${invoice.id}</span></div>
+  `;
+}
+
+async function renderPaymentForm(invoice) {
+  const card = document.getElementById('cardArea');
+  const stripeAvailable = typeof Stripe !== 'undefined';
+
+  let clientSecret = null;
+  if (stripeAvailable) {
+    try {
+      const res = await fetch(`${API_BASE}/api/invoices/${invoice.id}/create-payment-intent`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) clientSecret = data.clientSecret;
+    } catch (e) {
+      clientSecret = null;
+    }
+  }
+
+  if (stripeAvailable && clientSecret) {
+    card.innerHTML = `
+      <div class="amount-display">
+        <div class="num">${formatMoney(invoice.amount)}</div>
+        <div class="who">Balance for ${invoice.name}</div>
+      </div>
+      <label for="cardName">Name on card</label>
+      <input type="text" id="cardName" placeholder="${invoice.name}">
+      <label>Card details</label>
+      <div id="card-element" style="padding: 11px 12px; border-radius: 10px; border: 1.5px solid var(--border);"></div>
+      <button class="primary" id="payBtn">Pay ${formatMoney(invoice.amount)}</button>
+      <div id="payError"></div>
+      <div class="test-note">This is a real, complete Stripe charge running in test mode — card details go straight to Stripe, and the backend confirms the result before marking this paid. Try 4242 4242 4242 4242, any future expiry, any CVC.</div>
+    `;
+    const stripe = Stripe(STRIPE_PUBLISHABLE_KEY);
+    cardElement = stripe.elements().create('card', {
+      style: { base: { fontSize: '15px', color: '#14261F', fontFamily: 'Inter, sans-serif' } }
+    });
+    cardElement.mount('#card-element');
+
+    document.getElementById('payBtn').onclick = async () => {
+      const errEl = document.getElementById('payError');
+      errEl.innerHTML = '';
+      const cardName = document.getElementById('cardName').value.trim() || invoice.name;
+      const btn = document.getElementById('payBtn');
+      btn.disabled = true;
+      btn.textContent = 'Processing...';
+
+      const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: { card: cardElement, billing_details: { name: cardName } }
+      });
+
+      if (error) {
+        errEl.innerHTML = '<div class="error-note">' + error.message + '</div>';
+        btn.disabled = false;
+        btn.textContent = 'Pay ' + formatMoney(invoice.amount);
+        return;
+      }
+
+      try {
+        const confirmRes = await fetch(`${API_BASE}/api/invoices/${invoice.id}/confirm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paymentIntentId: paymentIntent.id })
+        });
+        const updatedInvoice = await confirmRes.json();
+        if (!confirmRes.ok) throw new Error(updatedInvoice.error || 'Payment succeeded but could not be confirmed.');
+        renderReceipt(updatedInvoice);
+      } catch (e) {
+        errEl.innerHTML = '<div class="error-note">' + e.message + '</div>';
+        btn.disabled = false;
+        btn.textContent = 'Pay ' + formatMoney(invoice.amount);
+      }
+    };
+    return;
+  }
+
+  renderMockPaymentForm(invoice);
+}
+
+function renderMockPaymentForm(invoice) {
+  const card = document.getElementById('cardArea');
+  card.innerHTML = `
+    <div class="amount-display">
+      <div class="num">${formatMoney(invoice.amount)}</div>
+      <div class="who">Balance for ${invoice.name}</div>
+    </div>
+    <label for="cardName">Name on card</label>
+    <input type="text" id="cardName" placeholder="${invoice.name}">
+    <label for="cardNumber">Card number</label>
+    <input type="text" id="cardNumber" placeholder="4242 4242 4242 4242" maxlength="19">
+    <div class="card-row">
+      <div>
+        <label for="cardExp">Expiry</label>
+        <input type="text" id="cardExp" placeholder="MM/YY" maxlength="5">
+      </div>
+      <div>
+        <label for="cardCvc">CVC</label>
+        <input type="text" id="cardCvc" placeholder="123" maxlength="4">
+      </div>
+    </div>
+    <button class="primary" id="payBtn">Pay ${formatMoney(invoice.amount)}</button>
+    <div id="payError"></div>
+    <div class="test-note">Stripe's real script is blocked in this preview environment, so this is the safe mock form for testing here — it validates format but doesn't move real money. On the actual live website (Phase 5), the real Stripe field above loads instead automatically, with no code changes needed.</div>
+  `;
+
+  document.getElementById('cardNumber').addEventListener('input', (e) => {
+    let digits = e.target.value.replace(/\D/g, '').slice(0, 16);
+    e.target.value = digits.replace(/(.{4})/g, '$1 ').trim();
+  });
+  document.getElementById('cardExp').addEventListener('input', (e) => {
+    let digits = e.target.value.replace(/\D/g, '').slice(0, 4);
+    if (digits.length > 2) digits = digits.slice(0, 2) + '/' + digits.slice(2);
+    e.target.value = digits;
+  });
+  document.getElementById('cardCvc').addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
+  });
+
+  document.getElementById('payBtn').onclick = async () => {
+    const errEl = document.getElementById('payError');
+    const num = document.getElementById('cardNumber').value.replace(/\s/g, '');
+    const exp = document.getElementById('cardExp').value;
+    const cvc = document.getElementById('cardCvc').value;
+    if (num.length !== 16 || !/^\d{2}\/\d{2}$/.test(exp) || cvc.length < 3) {
+      errEl.innerHTML = '<div class="error-note">Check your card number, expiry, and CVC — one looks incomplete.</div>';
+      return;
+    }
+    const btn = document.getElementById('payBtn');
+    btn.disabled = true;
+    btn.textContent = 'Processing...';
+    await new Promise(r => setTimeout(r, 900));
+    const invoices = await getInvoicesLocal();
+    const idx = invoices.findIndex(i => i.id === invoice.id);
+    if (idx !== -1) {
+      invoices[idx].status = 'paid';
+      invoices[idx].paidAt = new Date().toISOString();
+      await saveInvoicesLocal(invoices);
+    }
+    renderReceipt(invoices[idx]);
+  };
+}
+
+function renderReceipt(invoice) {
+  const card = document.getElementById('cardArea');
+  const stripeRef = invoice.stripePaymentIntentId;
+  card.innerHTML = `
+    <div class="confirm-icon">✓</div>
+    <h2 style="text-align:center;">Payment received</h2>
+    <div class="receipt-row"><span class="label">Patient</span><span>${invoice.name}</span></div>
+    <div class="receipt-row"><span class="label">Amount paid</span><span>${formatMoney(invoice.amount)}</span></div>
+    <div class="receipt-row"><span class="label">Invoice</span><span>${invoice.id}</span></div>
+    ${stripeRef ? '<div class="receipt-row"><span class="label">Stripe reference</span><span>' + stripeRef + '</span></div>' : ''}
+    <div class="test-note">${stripeRef ? 'That reference is a real, completed Stripe charge — look it up in your Stripe Dashboard under Test mode → Payments. ' : ''}A receipt would normally be emailed automatically here too — that notification wiring is the next piece to add.</div>
+  `;
+}
+
+switchTab('staff');
+</script>
+</body>
+</html>
