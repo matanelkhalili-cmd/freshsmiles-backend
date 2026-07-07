@@ -13,12 +13,32 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { Pool } = require('pg');
+const { Resend } = require('resend');
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 if (!STRIPE_SECRET_KEY) {
   console.warn('Warning: STRIPE_SECRET_KEY is not set. Payment endpoints will fail until it is.');
 }
 const stripe = require('stripe')(STRIPE_SECRET_KEY);
+
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+if (!RESEND_API_KEY) {
+  console.warn('Warning: RESEND_API_KEY is not set. Emails will be skipped until it is.');
+}
+const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
+const EMAIL_FROM = 'Fresh Smiles Dental <appointments@freshsmilesnow.com>';
+
+// Sending an email is never allowed to break the actual booking/payment
+// request it's attached to — if Resend isn't configured yet, or the send
+// fails for any reason, we log it and move on rather than throwing.
+async function sendEmail(to, subject, html) {
+  if (!resend || !to) return;
+  try {
+    await resend.emails.send({ from: EMAIL_FROM, to: [to], subject, html });
+  } catch (err) {
+    console.error('Email send failed:', err.message);
+  }
+}
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
@@ -49,6 +69,7 @@ async function initDB() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       phone TEXT,
+      email TEXT,
       amount NUMERIC NOT NULL,
       status TEXT NOT NULL DEFAULT 'unpaid',
       created_at TIMESTAMPTZ,
@@ -56,6 +77,16 @@ async function initDB() {
       stripe_payment_intent_id TEXT
     );
   `);
+  // Safe to run even if the table already exists without these columns —
+  // IF NOT EXISTS means it's a no-op on a database that already has them.
+  await pool.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS email TEXT;`);
+  await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS insurance_provider TEXT;`);
+  await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS insurance_member_id TEXT;`);
+  await pool.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS insurance_provider TEXT;`);
+  await pool.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS insurance_member_id TEXT;`);
+  await pool.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS insurance_status TEXT NOT NULL DEFAULT 'not_billed';`);
+  await pool.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS insurance_group_number TEXT;`);
+  await pool.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS insurance_notes TEXT;`);
   console.log('Database ready.');
 }
 
@@ -71,6 +102,8 @@ function bookingRowToJson(row) {
     phone: row.phone || '',
     email: row.email || '',
     reason: row.reason || '',
+    insuranceProvider: row.insurance_provider || '',
+    insuranceMemberId: row.insurance_member_id || '',
     bookedAt: row.booked_at ? row.booked_at.toISOString() : null,
     arrivedAt: row.arrived_at ? row.arrived_at.toISOString() : undefined,
     walkIn: row.walk_in || undefined
@@ -82,6 +115,12 @@ function invoiceRowToJson(row) {
     id: row.id,
     name: row.name,
     phone: row.phone || '',
+    email: row.email || '',
+    insuranceProvider: row.insurance_provider || '',
+    insuranceMemberId: row.insurance_member_id || '',
+    insuranceGroupNumber: row.insurance_group_number || '',
+    insuranceNotes: row.insurance_notes || '',
+    insuranceStatus: row.insurance_status || 'not_billed',
     amount: Number(row.amount),
     status: row.status,
     createdAt: row.created_at ? row.created_at.toISOString() : null,
@@ -107,9 +146,14 @@ app.get('/api/bookings/:date', async (req, res) => {
   }
 });
 
+function formatDateLabel(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+}
+
 // Create a new booking
 app.post('/api/bookings', async (req, res) => {
-  const { date, time, name, phone, email, reason } = req.body;
+  const { date, time, name, phone, email, reason, insuranceProvider, insuranceMemberId } = req.body;
   if (!date || !time || !name || !phone) {
     return res.status(400).json({ error: 'date, time, name, and phone are required.' });
   }
@@ -120,11 +164,24 @@ app.post('/api/bookings', async (req, res) => {
     }
     const bookedAt = new Date();
     const result = await pool.query(
-      `INSERT INTO bookings (date, time, name, phone, email, reason, booked_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [date, time, name, phone, email || '', reason || '', bookedAt]
+      `INSERT INTO bookings (date, time, name, phone, email, reason, insurance_provider, insurance_member_id, booked_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [date, time, name, phone, email || '', reason || '', insuranceProvider || '', insuranceMemberId || '', bookedAt]
     );
-    res.status(201).json(bookingRowToJson(result.rows[0]));
+    const booking = bookingRowToJson(result.rows[0]);
+    res.status(201).json(booking);
+
+    if (email) {
+      await sendEmail(
+        email,
+        `Your appointment is confirmed — ${formatDateLabel(date)}`,
+        `<p>Hi ${name.split(' ')[0]},</p>
+         <p>Your appointment at <strong>Fresh Smiles Dental</strong> is confirmed:</p>
+         <p><strong>${formatDateLabel(date)}</strong> at <strong>${time}</strong></p>
+         <p>If you need to change or cancel, please call the office.</p>
+         <p>See you soon!</p>`
+      );
+    }
   } catch (err) {
     res.status(500).json({ error: 'Database error: ' + err.message });
   }
@@ -184,19 +241,62 @@ app.post('/api/bookings/:date/checkin', async (req, res) => {
 
 // Staff: create a balance
 app.post('/api/invoices', async (req, res) => {
-  const { name, phone, amount } = req.body;
+  const { name, phone, email, amount, insuranceProvider, insuranceMemberId, insuranceGroupNumber, insuranceNotes } = req.body;
   if (!name || !amount || amount <= 0) {
     return res.status(400).json({ error: 'name and a positive amount are required.' });
   }
   try {
     const id = genInvoiceId();
     const createdAt = new Date();
+    const initialInsuranceStatus = insuranceProvider ? 'pending' : 'not_billed';
     const result = await pool.query(
-      `INSERT INTO invoices (id, name, phone, amount, status, created_at)
-       VALUES ($1, $2, $3, $4, 'unpaid', $5) RETURNING *`,
-      [id, name, phone || '', Number(amount), createdAt]
+      `INSERT INTO invoices (id, name, phone, email, amount, status, created_at, insurance_provider, insurance_member_id, insurance_group_number, insurance_notes, insurance_status)
+       VALUES ($1, $2, $3, $4, $5, 'unpaid', $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [id, name, phone || '', email || '', Number(amount), createdAt, insuranceProvider || '', insuranceMemberId || '', insuranceGroupNumber || '', insuranceNotes || '', initialInsuranceStatus]
     );
     res.status(201).json(invoiceRowToJson(result.rows[0]));
+  } catch (err) {
+    res.status(500).json({ error: 'Database error: ' + err.message });
+  }
+});
+
+// Staff: edit insurance details on an existing balance (e.g. patient calls
+// back later with their member ID they didn't have at first)
+app.post('/api/invoices/:id/insurance', async (req, res) => {
+  const { insuranceProvider, insuranceMemberId, insuranceGroupNumber, insuranceNotes } = req.body;
+  try {
+    const existing = await pool.query('SELECT insurance_status FROM invoices WHERE id = $1', [req.params.id.toUpperCase()]);
+    if (existing.rows.length === 0) return res.status(404).json({ error: 'No balance found for that ID.' });
+    // If there wasn't a provider before and now there is, move it into "pending" automatically.
+    const newStatus = (!existing.rows[0].insurance_status || existing.rows[0].insurance_status === 'not_billed') && insuranceProvider
+      ? 'pending'
+      : existing.rows[0].insurance_status;
+    const result = await pool.query(
+      `UPDATE invoices SET insurance_provider = $1, insurance_member_id = $2, insurance_group_number = $3, insurance_notes = $4, insurance_status = $5 WHERE id = $6 RETURNING *`,
+      [insuranceProvider || '', insuranceMemberId || '', insuranceGroupNumber || '', insuranceNotes || '', newStatus, req.params.id.toUpperCase()]
+    );
+    res.json(invoiceRowToJson(result.rows[0]));
+  } catch (err) {
+    res.status(500).json({ error: 'Database error: ' + err.message });
+  }
+});
+
+const VALID_INSURANCE_STATUSES = ['not_billed', 'pending', 'paid', 'denied'];
+
+// Staff: update just the insurance status on an existing balance
+// (e.g. after hearing back from the insurer)
+app.post('/api/invoices/:id/insurance-status', async (req, res) => {
+  const { status } = req.body;
+  if (!VALID_INSURANCE_STATUSES.includes(status)) {
+    return res.status(400).json({ error: 'Invalid insurance status.' });
+  }
+  try {
+    const result = await pool.query(
+      'UPDATE invoices SET insurance_status = $1 WHERE id = $2 RETURNING *',
+      [status, req.params.id.toUpperCase()]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'No balance found for that ID.' });
+    res.json(invoiceRowToJson(result.rows[0]));
   } catch (err) {
     res.status(500).json({ error: 'Database error: ' + err.message });
   }
@@ -263,7 +363,20 @@ app.post('/api/invoices/:id/confirm', async (req, res) => {
       `UPDATE invoices SET status = 'paid', paid_at = $1, stripe_payment_intent_id = $2 WHERE id = $3 RETURNING *`,
       [new Date(), paymentIntentId, req.params.id.toUpperCase()]
     );
-    res.json(invoiceRowToJson(result.rows[0]));
+    const invoice = invoiceRowToJson(result.rows[0]);
+    res.json(invoice);
+
+    if (invoice.email) {
+      const amountFormatted = invoice.amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+      await sendEmail(
+        invoice.email,
+        `Payment received — ${amountFormatted}`,
+        `<p>Hi ${invoice.name.split(' ')[0]},</p>
+         <p>This confirms your payment to <strong>Fresh Smiles Dental</strong>:</p>
+         <p><strong>${amountFormatted}</strong> — invoice ${invoice.id}</p>
+         <p>Thank you!</p>`
+      );
+    }
   } catch (err) {
     res.status(500).json({ error: 'Could not confirm payment: ' + err.message });
   }
