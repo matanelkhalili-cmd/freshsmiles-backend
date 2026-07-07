@@ -188,7 +188,10 @@ app.post('/api/bookings', async (req, res) => {
 // Staff view: all upcoming bookings across all dates
 app.get('/api/bookings', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM bookings WHERE cancelled = FALSE ORDER BY date, time');
+    const query = req.query.includeCancelled === 'true'
+      ? 'SELECT * FROM bookings ORDER BY date, time'
+      : 'SELECT * FROM bookings WHERE cancelled = FALSE ORDER BY date, time';
+    const result = await pool.query(query);
     const all = result.rows.map(row => ({ ...bookingRowToJson(row), date: row.date }));
     res.json(all);
   } catch (err) {
