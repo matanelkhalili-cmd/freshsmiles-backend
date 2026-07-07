@@ -79,6 +79,41 @@ app.get('/api/bookings', (req, res) => {
   res.json(all);
 });
 
+// Check in a patient for a given date. If their name matches an existing
+// booking that day, mark it arrived. If not (e.g. a walk-in with no
+// appointment), create a lightweight entry so they still show up on the
+// staff's arrived list.
+app.post('/api/bookings/:date/checkin', (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'A name is required to check in.' });
+  }
+  const db = readDB();
+  const date = req.params.date;
+  if (!db.bookings[date]) db.bookings[date] = [];
+
+  const normalized = name.trim().toLowerCase();
+  let booking = db.bookings[date].find(b => b.name.trim().toLowerCase() === normalized);
+
+  if (booking) {
+    if (!booking.arrivedAt) booking.arrivedAt = new Date().toISOString();
+  } else {
+    booking = {
+      time: 'Walk-in',
+      name: name.trim(),
+      phone: '',
+      email: '',
+      reason: '',
+      bookedAt: new Date().toISOString(),
+      arrivedAt: new Date().toISOString(),
+      walkIn: true
+    };
+    db.bookings[date].push(booking);
+  }
+  writeDB(db);
+  res.json(booking);
+});
+
 // ---- Invoice / billing endpoints ----
 
 // Staff: create a balance
