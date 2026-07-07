@@ -429,17 +429,42 @@ async function handleBookAppointment(args) {
 async function handleGetPatientInfo(args) {
   const phone = args.phone;
   if (!phone) return 'I need a phone number to look that up.';
-  const bookingRes = await pool.query('SELECT * FROM bookings WHERE phone = $1 ORDER BY date DESC LIMIT 1', [phone]);
+  const bookingRes = await pool.query('SELECT * FROM bookings WHERE phone = $1 ORDER BY booked_at DESC LIMIT 1', [phone]);
   const invoiceRes = await pool.query('SELECT * FROM invoices WHERE phone = $1 ORDER BY created_at DESC LIMIT 1', [phone]);
   if (bookingRes.rows.length === 0 && invoiceRes.rows.length === 0) {
     return "I don't have a record for that phone number yet — this may be a new patient.";
   }
-  const name = (invoiceRes.rows[0] && invoiceRes.rows[0].name) || (bookingRes.rows[0] && bookingRes.rows[0].name);
+  const booking = bookingRes.rows[0];
   const inv = invoiceRes.rows[0];
-  const insuranceText = inv && inv.insurance_provider
-    ? `Insurance on file: ${inv.insurance_provider}, member ID ${inv.insurance_member_id || 'not given'}.`
+  const name = (inv && inv.name) || (booking && booking.name);
+  // Prefer the invoice's insurance info (more complete — has group number too),
+  // but fall back to whatever's saved on the booking if there's no invoice yet.
+  const provider = (inv && inv.insurance_provider) || (booking && booking.insurance_provider);
+  const memberId = (inv && inv.insurance_member_id) || (booking && booking.insurance_member_id);
+  const insuranceText = provider
+    ? `Insurance on file: ${provider}, member ID ${memberId || 'not given'}.`
     : 'No insurance on file.';
   return `Found ${name}. ${insuranceText}`;
+}
+
+// Actually saves insurance info a caller gives Rose over the phone, rather
+// than just having her say "I'll pass that along" with nothing behind it.
+// Attaches it to their most recent booking, since that's what links a
+// phone number to a real record today.
+async function handleSaveInsuranceInfo(args) {
+  const { phone, insuranceProvider, insuranceMemberId } = args;
+  if (!phone) return "I need a phone number to save that against.";
+  if (!insuranceProvider) return "I need at least the insurance provider name to save this.";
+  const result = await pool.query(
+    `UPDATE bookings SET insurance_provider = $1, insurance_member_id = $2
+     WHERE phone = $3 AND id = (SELECT id FROM bookings WHERE phone = $3 ORDER BY booked_at DESC LIMIT 1)
+     RETURNING *`,
+    [insuranceProvider, insuranceMemberId || '', phone]
+  );
+  if (result.rows.length === 0) {
+    return "I couldn't find a booking for that phone number to attach the insurance info to. Let them know staff will need to add it manually.";
+  }
+  return `Saved — ${insuranceProvider}${insuranceMemberId ? ', member ID ' + insuranceMemberId : ''} is now on file for this patient's appointment.`;
 }
 
 app.post('/api/vapi/tools', async (req, res) => {
@@ -495,6 +520,15 @@ app.post('/api/vapi/book-appointment', async (req, res) => {
 app.get('/api/vapi/patient-info', async (req, res) => {
   try {
     const message = await handleGetPatientInfo({ phone: req.query.phone });
+    res.json({ message });
+  } catch (err) {
+    res.json({ message: `Something went wrong: ${err.message}` });
+  }
+});
+
+app.post('/api/vapi/save-insurance-info', async (req, res) => {
+  try {
+    const message = await handleSaveInsuranceInfo(req.body);
     res.json({ message });
   } catch (err) {
     res.json({ message: `Something went wrong: ${err.message}` });
