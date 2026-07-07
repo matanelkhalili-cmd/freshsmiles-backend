@@ -471,6 +471,36 @@ app.post('/api/vapi/tools', async (req, res) => {
   }
 });
 
+// Simple REST-style versions of the same three abilities, for Vapi's
+// "API Request" tool type, which just makes a plain HTTP call and reads
+// back a plain JSON response — no special envelope needed.
+app.get('/api/vapi/check-availability', async (req, res) => {
+  try {
+    const message = await handleCheckAvailability({ date: req.query.date });
+    res.json({ message });
+  } catch (err) {
+    res.json({ message: `Something went wrong: ${err.message}` });
+  }
+});
+
+app.post('/api/vapi/book-appointment', async (req, res) => {
+  try {
+    const message = await handleBookAppointment(req.body);
+    res.json({ message });
+  } catch (err) {
+    res.json({ message: `Something went wrong: ${err.message}` });
+  }
+});
+
+app.get('/api/vapi/patient-info', async (req, res) => {
+  try {
+    const message = await handleGetPatientInfo({ phone: req.query.phone });
+    res.json({ message });
+  } catch (err) {
+    res.json({ message: `Something went wrong: ${err.message}` });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 initDB()
   .then(() => {
