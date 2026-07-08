@@ -232,7 +232,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // ---- Booking endpoints ----
 
-// Get all bookings for one date (used to grey out taken time slots)
+// Get all bookings for one date (used to show how many patients are
+// already booked in each slot — informational only, doesn't block booking)
 app.get('/api/bookings/:date', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM bookings WHERE date = $1 AND cancelled = FALSE AND archived = FALSE ORDER BY time', [req.params.date]);
@@ -254,10 +255,9 @@ app.post('/api/bookings', async (req, res) => {
     return res.status(400).json({ error: 'date, time, name, and phone are required.' });
   }
   try {
-    const existing = await pool.query('SELECT id FROM bookings WHERE date = $1 AND time = $2 AND cancelled = FALSE AND archived = FALSE', [date, time]);
-    if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'That time slot was just taken. Please pick another.' });
-    }
+    // No conflict check — the office can see multiple patients in the same
+    // slot (multiple chairs/providers), so overlapping bookings are allowed
+    // by design, not a bug.
     const bookedAt = new Date();
     const result = await pool.query(
       `INSERT INTO bookings (date, time, name, phone, email, reason, insurance_provider, insurance_member_id, date_of_birth, home_address, booked_at)
@@ -743,9 +743,10 @@ function timeSlotToMinutes(slot) {
 }
 
   if (!date) return 'I need a specific date to check availability.';
-  const result = await pool.query('SELECT time FROM bookings WHERE date = $1 AND cancelled = FALSE AND archived = FALSE', [date]);
-  const taken = result.rows.map(r => r.time);
-  let available = VOICE_TIME_SLOTS.filter(t => !taken.includes(t));
+  // No filtering by existing bookings — the office can see multiple patients
+  // in the same slot, so every slot is offered regardless of what's already
+  // booked.
+  let available = VOICE_TIME_SLOTS;
 
   // If checking today, don't offer times that have already passed.
   const now = getNowInOfficeTimezone();
@@ -753,18 +754,14 @@ function timeSlotToMinutes(slot) {
     available = available.filter(t => timeSlotToMinutes(t) > now.minutesSinceMidnight);
   }
 
-  if (available.length === 0) return `There are no more open slots on ${date}. Would you like me to check another day?`;
-  return `On ${date}, these times are open: ${available.join(', ')}.`;
+  if (available.length === 0) return `There are no more time slots today. Would you like me to check another day?`;
+  return `On ${date}, these times are available: ${available.join(', ')}.`;
 }
 
 async function handleBookAppointment(args) {
   const { date, time, name, phone, email, reason, dateOfBirth, homeAddress, insuranceProvider, insuranceMemberId } = args;
   if (!date || !time || !name || !phone) {
     return 'I need a date, time, patient name, and phone number to book this appointment.';
-  }
-  const existing = await pool.query('SELECT id FROM bookings WHERE date = $1 AND time = $2 AND cancelled = FALSE AND archived = FALSE', [date, time]);
-  if (existing.rows.length > 0) {
-    return `Sorry, ${time} on ${date} was just taken. Could you pick a different time?`;
   }
   await pool.query(
     `INSERT INTO bookings (date, time, name, phone, email, reason, date_of_birth, home_address, insurance_provider, insurance_member_id, booked_at)
