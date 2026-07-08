@@ -53,6 +53,11 @@ async function sendEmail(to, subject, html) {
 async function sendOfficeBookingNotification(booking, source) {
   if (!OFFICE_EMAIL) return;
   const dateLabel = formatDateLabel(booking.date);
+  const insuranceProvider = booking.insuranceProvider || booking.insurance_provider || '';
+  const insuranceMemberId = booking.insuranceMemberId || booking.insurance_member_id || '';
+  const insuranceGroupNumber = booking.insuranceGroupNumber || booking.insurance_group_number || '';
+  const insuranceNotes = booking.insuranceNotes || booking.insurance_notes || '';
+
   await sendEmail(
     OFFICE_EMAIL,
     `New appointment booked — ${booking.name}, ${dateLabel}`,
@@ -63,6 +68,10 @@ async function sendOfficeBookingNotification(booking, source) {
        <strong>Email:</strong> ${booking.email || 'not given'}<br>
        <strong>Date of birth:</strong> ${booking.dateOfBirth || booking.date_of_birth || 'not given'}<br>
        <strong>Home address:</strong> ${booking.homeAddress || booking.home_address || 'not given'}<br>
+       <strong>Insurance provider:</strong> ${insuranceProvider || 'not given'}<br>
+       <strong>Insurance member ID:</strong> ${insuranceMemberId || 'not given'}<br>
+       <strong>Insurance group number:</strong> ${insuranceGroupNumber || 'not given'}<br>
+       <strong>Insurance notes:</strong> ${insuranceNotes || 'not given'}<br>
        <strong>Date:</strong> ${dateLabel}<br>
        <strong>Time:</strong> ${booking.time}<br>
        <strong>Reason:</strong> ${booking.reason || 'not given'}
@@ -711,7 +720,7 @@ async function handleBookAppointment(args) {
       `<p>Hi ${name.split(' ')[0]},</p><p>Your appointment at <strong>Fresh Smiles Dental</strong> is confirmed for <strong>${formatDateLabel(date)}</strong> at <strong>${time}</strong>.</p>`
     );
   }
-  await sendOfficeBookingNotification({ date, time, name, phone, email, reason, dateOfBirth, homeAddress }, 'phone — Rose');
+  await sendOfficeBookingNotification({ date, time, name, phone, email, reason, dateOfBirth, homeAddress, insuranceProvider, insuranceMemberId }, 'phone — Rose');
   return `You're all set — booked for ${formatDateLabel(date)} at ${time}.`;
 }
 
