@@ -61,6 +61,8 @@ async function sendOfficeBookingNotification(booking, source) {
        <strong>Patient:</strong> ${booking.name}<br>
        <strong>Phone:</strong> ${booking.phone || 'not given'}<br>
        <strong>Email:</strong> ${booking.email || 'not given'}<br>
+       <strong>Date of birth:</strong> ${booking.dateOfBirth || booking.date_of_birth || 'not given'}<br>
+       <strong>Home address:</strong> ${booking.homeAddress || booking.home_address || 'not given'}<br>
        <strong>Date:</strong> ${dateLabel}<br>
        <strong>Time:</strong> ${booking.time}<br>
        <strong>Reason:</strong> ${booking.reason || 'not given'}
@@ -118,7 +120,11 @@ async function initDB() {
   await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled BOOLEAN DEFAULT FALSE;`);
   await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT FALSE;`);
   await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS visit_status TEXT NOT NULL DEFAULT 'scheduled';`);
+  await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS date_of_birth TEXT;`);
+  await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS home_address TEXT;`);
   await pool.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT FALSE;`);
+  await pool.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS date_of_birth TEXT;`);
+  await pool.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS home_address TEXT;`);
   console.log('Database ready.');
 }
 
@@ -135,6 +141,8 @@ function bookingRowToJson(row) {
     name: row.name,
     phone: row.phone || '',
     email: row.email || '',
+    dateOfBirth: row.date_of_birth || '',
+    homeAddress: row.home_address || '',
     reason: row.reason || '',
     insuranceProvider: row.insurance_provider || '',
     insuranceMemberId: row.insurance_member_id || '',
@@ -153,6 +161,8 @@ function invoiceRowToJson(row) {
     name: row.name,
     phone: row.phone || '',
     email: row.email || '',
+    dateOfBirth: row.date_of_birth || '',
+    homeAddress: row.home_address || '',
     insuranceProvider: row.insurance_provider || '',
     insuranceMemberId: row.insurance_member_id || '',
     insuranceGroupNumber: row.insurance_group_number || '',
@@ -230,7 +240,7 @@ function formatDateLabel(dateStr) {
 
 // Create a new booking
 app.post('/api/bookings', async (req, res) => {
-  const { date, time, name, phone, email, reason, insuranceProvider, insuranceMemberId } = req.body;
+  const { date, time, name, phone, email, reason, insuranceProvider, insuranceMemberId, dateOfBirth, homeAddress } = req.body;
   if (!date || !time || !name || !phone) {
     return res.status(400).json({ error: 'date, time, name, and phone are required.' });
   }
@@ -241,9 +251,9 @@ app.post('/api/bookings', async (req, res) => {
     }
     const bookedAt = new Date();
     const result = await pool.query(
-      `INSERT INTO bookings (date, time, name, phone, email, reason, insurance_provider, insurance_member_id, booked_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [date, time, name, phone, email || '', reason || '', insuranceProvider || '', insuranceMemberId || '', bookedAt]
+      `INSERT INTO bookings (date, time, name, phone, email, reason, insurance_provider, insurance_member_id, date_of_birth, home_address, booked_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [date, time, name, phone, email || '', reason || '', insuranceProvider || '', insuranceMemberId || '', dateOfBirth || '', homeAddress || '', bookedAt]
     );
     const booking = bookingRowToJson(result.rows[0]);
     res.status(201).json(booking);
@@ -286,7 +296,7 @@ const VALID_VISIT_STATUSES = ['scheduled', 'waiting', 'in_room', 'done'];
 app.put('/api/bookings/:id', requireStaffAuth, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid booking ID.' });
-  const { date, time, name, phone, email, reason, insuranceProvider, insuranceMemberId } = req.body;
+  const { date, time, name, phone, email, reason, insuranceProvider, insuranceMemberId, dateOfBirth, homeAddress } = req.body;
   if (!date || !time || !name) {
     return res.status(400).json({ error: 'date, time, and name are required.' });
   }
@@ -294,10 +304,10 @@ app.put('/api/bookings/:id', requireStaffAuth, async (req, res) => {
     const result = await pool.query(
       `UPDATE bookings
        SET date = $1, time = $2, name = $3, phone = $4, email = $5, reason = $6,
-           insurance_provider = $7, insurance_member_id = $8
-       WHERE id = $9 AND archived = FALSE
+           insurance_provider = $7, insurance_member_id = $8, date_of_birth = $9, home_address = $10
+       WHERE id = $11 AND archived = FALSE
        RETURNING *`,
-      [date, time, name, phone || '', email || '', reason || '', insuranceProvider || '', insuranceMemberId || '', id]
+      [date, time, name, phone || '', email || '', reason || '', insuranceProvider || '', insuranceMemberId || '', dateOfBirth || '', homeAddress || '', id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'No active booking found.' });
     res.json(bookingRowToJson(result.rows[0]));
@@ -346,7 +356,7 @@ app.post('/api/bookings/:id/archive', requireStaffAuth, async (req, res) => {
 
 // Staff: edit a patient's contact/insurance info everywhere it currently appears.
 app.put('/api/patients', requireStaffAuth, async (req, res) => {
-  const { oldPhone, oldName, name, phone, email, insuranceProvider, insuranceMemberId, insuranceGroupNumber, insuranceNotes } = req.body;
+  const { oldPhone, oldName, name, phone, email, dateOfBirth, homeAddress, insuranceProvider, insuranceMemberId, insuranceGroupNumber, insuranceNotes } = req.body;
   if (!oldPhone && !oldName) return res.status(400).json({ error: 'Need the current phone or name to find the patient.' });
   if (!name) return res.status(400).json({ error: 'Patient name is required.' });
 
@@ -359,19 +369,19 @@ app.put('/api/patients', requireStaffAuth, async (req, res) => {
   }
 
   try {
-    const bookingValues = [name, phone || '', email || '', insuranceProvider || '', insuranceMemberId || ''];
-    const bookingMatch = buildPatientMatch(6, bookingValues);
+    const bookingValues = [name, phone || '', email || '', dateOfBirth || '', homeAddress || '', insuranceProvider || '', insuranceMemberId || ''];
+    const bookingMatch = buildPatientMatch(8, bookingValues);
     await pool.query(
-      `UPDATE bookings SET name = $1, phone = $2, email = $3, insurance_provider = $4, insurance_member_id = $5
+      `UPDATE bookings SET name = $1, phone = $2, email = $3, date_of_birth = $4, home_address = $5, insurance_provider = $6, insurance_member_id = $7
        WHERE archived = FALSE AND ${bookingMatch}`,
       bookingValues
     );
 
-    const invoiceValues = [name, phone || '', email || '', insuranceProvider || '', insuranceMemberId || '', insuranceGroupNumber || '', insuranceNotes || ''];
-    const invoiceMatch = buildPatientMatch(8, invoiceValues);
+    const invoiceValues = [name, phone || '', email || '', dateOfBirth || '', homeAddress || '', insuranceProvider || '', insuranceMemberId || '', insuranceGroupNumber || '', insuranceNotes || ''];
+    const invoiceMatch = buildPatientMatch(10, invoiceValues);
     await pool.query(
-      `UPDATE invoices SET name = $1, phone = $2, email = $3, insurance_provider = $4, insurance_member_id = $5,
-          insurance_group_number = $6, insurance_notes = $7
+      `UPDATE invoices SET name = $1, phone = $2, email = $3, date_of_birth = $4, home_address = $5, insurance_provider = $6, insurance_member_id = $7,
+          insurance_group_number = $8, insurance_notes = $9
        WHERE archived = FALSE AND ${invoiceMatch}`,
       invoiceValues
     );
@@ -443,7 +453,7 @@ app.post('/api/bookings/:date/checkin', async (req, res) => {
 
 // Staff: create a balance
 app.post('/api/invoices', requireStaffAuth, async (req, res) => {
-  const { name, phone, email, amount, insuranceProvider, insuranceMemberId, insuranceGroupNumber, insuranceNotes } = req.body;
+  const { name, phone, email, dateOfBirth, homeAddress, amount, insuranceProvider, insuranceMemberId, insuranceGroupNumber, insuranceNotes } = req.body;
   if (!name || !amount || amount <= 0) {
     return res.status(400).json({ error: 'name and a positive amount are required.' });
   }
@@ -452,9 +462,9 @@ app.post('/api/invoices', requireStaffAuth, async (req, res) => {
     const createdAt = new Date();
     const initialInsuranceStatus = insuranceProvider ? 'pending' : 'not_billed';
     const result = await pool.query(
-      `INSERT INTO invoices (id, name, phone, email, amount, status, created_at, insurance_provider, insurance_member_id, insurance_group_number, insurance_notes, insurance_status)
-       VALUES ($1, $2, $3, $4, $5, 'unpaid', $6, $7, $8, $9, $10, $11) RETURNING *`,
-      [id, name, phone || '', email || '', Number(amount), createdAt, insuranceProvider || '', insuranceMemberId || '', insuranceGroupNumber || '', insuranceNotes || '', initialInsuranceStatus]
+      `INSERT INTO invoices (id, name, phone, email, date_of_birth, home_address, amount, status, created_at, insurance_provider, insurance_member_id, insurance_group_number, insurance_notes, insurance_status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'unpaid', $8, $9, $10, $11, $12, $13) RETURNING *`,
+      [id, name, phone || '', email || '', dateOfBirth || '', homeAddress || '', Number(amount), createdAt, insuranceProvider || '', insuranceMemberId || '', insuranceGroupNumber || '', insuranceNotes || '', initialInsuranceStatus]
     );
     res.status(201).json(invoiceRowToJson(result.rows[0]));
   } catch (err) {
@@ -509,7 +519,7 @@ const VALID_INVOICE_STATUSES = ['unpaid', 'paid'];
 
 // Staff: edit an existing balance.
 app.put('/api/invoices/:id', requireStaffAuth, async (req, res) => {
-  const { name, phone, email, amount, status, insuranceProvider, insuranceMemberId, insuranceGroupNumber, insuranceNotes, insuranceStatus } = req.body;
+  const { name, phone, email, dateOfBirth, homeAddress, amount, status, insuranceProvider, insuranceMemberId, insuranceGroupNumber, insuranceNotes, insuranceStatus } = req.body;
   if (!name || !amount || Number(amount) <= 0) {
     return res.status(400).json({ error: 'name and a positive amount are required.' });
   }
@@ -519,12 +529,12 @@ app.put('/api/invoices/:id', requireStaffAuth, async (req, res) => {
     const paidAtSql = status === 'paid' ? 'COALESCE(paid_at, NOW())' : 'NULL';
     const result = await pool.query(
       `UPDATE invoices
-       SET name = $1, phone = $2, email = $3, amount = $4, status = $5, paid_at = ${paidAtSql},
-           insurance_provider = $6, insurance_member_id = $7, insurance_group_number = $8,
-           insurance_notes = $9, insurance_status = $10
-       WHERE id = $11 AND archived = FALSE
+       SET name = $1, phone = $2, email = $3, date_of_birth = $4, home_address = $5, amount = $6, status = $7, paid_at = ${paidAtSql},
+           insurance_provider = $8, insurance_member_id = $9, insurance_group_number = $10,
+           insurance_notes = $11, insurance_status = $12
+       WHERE id = $13 AND archived = FALSE
        RETURNING *`,
-      [name, phone || '', email || '', Number(amount), status || 'unpaid', insuranceProvider || '', insuranceMemberId || '', insuranceGroupNumber || '', insuranceNotes || '', insuranceStatus || (insuranceProvider ? 'pending' : 'not_billed'), req.params.id.toUpperCase()]
+      [name, phone || '', email || '', dateOfBirth || '', homeAddress || '', Number(amount), status || 'unpaid', insuranceProvider || '', insuranceMemberId || '', insuranceGroupNumber || '', insuranceNotes || '', insuranceStatus || (insuranceProvider ? 'pending' : 'not_billed'), req.params.id.toUpperCase()]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'No active balance found for that ID.' });
     res.json(invoiceRowToJson(result.rows[0]));
@@ -681,7 +691,7 @@ function timeSlotToMinutes(slot) {
 }
 
 async function handleBookAppointment(args) {
-  const { date, time, name, phone, email, reason } = args;
+  const { date, time, name, phone, email, reason, dateOfBirth, homeAddress, insuranceProvider, insuranceMemberId } = args;
   if (!date || !time || !name || !phone) {
     return 'I need a date, time, patient name, and phone number to book this appointment.';
   }
@@ -690,8 +700,9 @@ async function handleBookAppointment(args) {
     return `Sorry, ${time} on ${date} was just taken. Could you pick a different time?`;
   }
   await pool.query(
-    `INSERT INTO bookings (date, time, name, phone, email, reason, booked_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [date, time, name, phone, email || '', reason || '', new Date()]
+    `INSERT INTO bookings (date, time, name, phone, email, reason, date_of_birth, home_address, insurance_provider, insurance_member_id, booked_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    [date, time, name, phone, email || '', reason || '', dateOfBirth || '', homeAddress || '', insuranceProvider || '', insuranceMemberId || '', new Date()]
   );
   if (email) {
     await sendEmail(
@@ -700,7 +711,7 @@ async function handleBookAppointment(args) {
       `<p>Hi ${name.split(' ')[0]},</p><p>Your appointment at <strong>Fresh Smiles Dental</strong> is confirmed for <strong>${formatDateLabel(date)}</strong> at <strong>${time}</strong>.</p>`
     );
   }
-  await sendOfficeBookingNotification({ date, time, name, phone, email, reason }, 'phone — Rose');
+  await sendOfficeBookingNotification({ date, time, name, phone, email, reason, dateOfBirth, homeAddress }, 'phone — Rose');
   return `You're all set — booked for ${formatDateLabel(date)} at ${time}.`;
 }
 
