@@ -608,6 +608,28 @@ app.get('/api/invoices/:id', async (req, res) => {
   }
 });
 
+// Patient: self-serve add date of birth and home address to their own
+// balance, so they can complete payment without needing to call the office.
+// This is public (same trust level as looking up or paying the balance —
+// both already require knowing the invoice ID), and only ever touches these
+// two fields, nothing else on the invoice.
+app.post('/api/invoices/:id/patient-details', async (req, res) => {
+  const { dateOfBirth, homeAddress } = req.body;
+  if (!dateOfBirth || !homeAddress) {
+    return res.status(400).json({ error: 'Please enter both your date of birth and home address.' });
+  }
+  try {
+    const result = await pool.query(
+      `UPDATE invoices SET date_of_birth = $1, home_address = $2 WHERE id = $3 AND archived = FALSE RETURNING *`,
+      [dateOfBirth, homeAddress, req.params.id.toUpperCase()]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'No balance found for that ID.' });
+    res.json(invoiceRowToJson(result.rows[0]));
+  } catch (err) {
+    res.status(500).json({ error: 'Database error: ' + err.message });
+  }
+});
+
 // Patient: start a real payment for an invoice.
 // This creates a genuine Stripe PaymentIntent — the object Stripe uses to track
 // a real charge attempt — and returns a "client secret" the browser needs to
@@ -626,7 +648,7 @@ app.post('/api/invoices/:id/create-payment-intent', async (req, res) => {
     // Balances or Patients tab) before the patient can pay.
     if (!invoice.dateOfBirth || !invoice.homeAddress) {
       return res.status(400).json({
-        error: 'This balance needs a date of birth and home address on file before it can be paid. Please contact the office to update your information.',
+        error: 'This balance needs a date of birth and home address on file before it can be paid.',
         code: 'MISSING_PATIENT_INFO'
       });
     }
