@@ -116,6 +116,9 @@ async function initDB() {
   await pool.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS insurance_group_number TEXT;`);
   await pool.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS insurance_notes TEXT;`);
   await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled BOOLEAN DEFAULT FALSE;`);
+  await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT FALSE;`);
+  await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS visit_status TEXT NOT NULL DEFAULT 'scheduled';`);
+  await pool.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT FALSE;`);
   console.log('Database ready.');
 }
 
@@ -126,6 +129,8 @@ function genInvoiceId() {
 // Convert a database row (snake_case) into the shape the frontend expects (camelCase)
 function bookingRowToJson(row) {
   return {
+    id: row.id,
+    date: row.date,
     time: row.time,
     name: row.name,
     phone: row.phone || '',
@@ -135,7 +140,10 @@ function bookingRowToJson(row) {
     insuranceMemberId: row.insurance_member_id || '',
     bookedAt: row.booked_at ? row.booked_at.toISOString() : null,
     arrivedAt: row.arrived_at ? row.arrived_at.toISOString() : undefined,
-    walkIn: row.walk_in || undefined
+    walkIn: row.walk_in || undefined,
+    visitStatus: row.visit_status || (row.arrived_at ? 'waiting' : 'scheduled'),
+    cancelled: !!row.cancelled,
+    archived: !!row.archived
   };
 }
 
@@ -154,7 +162,8 @@ function invoiceRowToJson(row) {
     status: row.status,
     createdAt: row.created_at ? row.created_at.toISOString() : null,
     paidAt: row.paid_at ? row.paid_at.toISOString() : undefined,
-    stripePaymentIntentId: row.stripe_payment_intent_id || undefined
+    stripePaymentIntentId: row.stripe_payment_intent_id || undefined,
+    archived: !!row.archived
   };
 }
 
@@ -207,7 +216,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Get all bookings for one date (used to grey out taken time slots)
 app.get('/api/bookings/:date', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM bookings WHERE date = $1 AND cancelled = FALSE ORDER BY time', [req.params.date]);
+    const result = await pool.query('SELECT * FROM bookings WHERE date = $1 AND cancelled = FALSE AND archived = FALSE ORDER BY time', [req.params.date]);
     res.json(result.rows.map(bookingRowToJson));
   } catch (err) {
     res.status(500).json({ error: 'Database error: ' + err.message });
@@ -226,7 +235,7 @@ app.post('/api/bookings', async (req, res) => {
     return res.status(400).json({ error: 'date, time, name, and phone are required.' });
   }
   try {
-    const existing = await pool.query('SELECT id FROM bookings WHERE date = $1 AND time = $2 AND cancelled = FALSE', [date, time]);
+    const existing = await pool.query('SELECT id FROM bookings WHERE date = $1 AND time = $2 AND cancelled = FALSE AND archived = FALSE', [date, time]);
     if (existing.rows.length > 0) {
       return res.status(409).json({ error: 'That time slot was just taken. Please pick another.' });
     }
@@ -260,11 +269,132 @@ app.post('/api/bookings', async (req, res) => {
 app.get('/api/bookings', requireStaffAuth, async (req, res) => {
   try {
     const query = req.query.includeCancelled === 'true'
-      ? 'SELECT * FROM bookings ORDER BY date, time'
-      : 'SELECT * FROM bookings WHERE cancelled = FALSE ORDER BY date, time';
+      ? 'SELECT * FROM bookings WHERE archived = FALSE ORDER BY date, time'
+      : 'SELECT * FROM bookings WHERE cancelled = FALSE AND archived = FALSE ORDER BY date, time';
     const result = await pool.query(query);
-    const all = result.rows.map(row => ({ ...bookingRowToJson(row), date: row.date }));
+    const all = result.rows.map(row => bookingRowToJson(row));
     res.json(all);
+  } catch (err) {
+    res.status(500).json({ error: 'Database error: ' + err.message });
+  }
+});
+
+
+const VALID_VISIT_STATUSES = ['scheduled', 'waiting', 'in_room', 'done'];
+
+// Staff: edit an existing appointment / arrived patient record.
+app.put('/api/bookings/:id', requireStaffAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid booking ID.' });
+  const { date, time, name, phone, email, reason, insuranceProvider, insuranceMemberId } = req.body;
+  if (!date || !time || !name) {
+    return res.status(400).json({ error: 'date, time, and name are required.' });
+  }
+  try {
+    const result = await pool.query(
+      `UPDATE bookings
+       SET date = $1, time = $2, name = $3, phone = $4, email = $5, reason = $6,
+           insurance_provider = $7, insurance_member_id = $8
+       WHERE id = $9 AND archived = FALSE
+       RETURNING *`,
+      [date, time, name, phone || '', email || '', reason || '', insuranceProvider || '', insuranceMemberId || '', id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'No active booking found.' });
+    res.json(bookingRowToJson(result.rows[0]));
+  } catch (err) {
+    res.status(500).json({ error: 'Database error: ' + err.message });
+  }
+});
+
+// Staff: update where an arrived patient is in the visit workflow.
+app.post('/api/bookings/:id/visit-status', requireStaffAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  const { status } = req.body;
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid booking ID.' });
+  if (!VALID_VISIT_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid visit status.' });
+  try {
+    const result = await pool.query(
+      `UPDATE bookings
+       SET visit_status = $1,
+           arrived_at = CASE WHEN arrived_at IS NULL AND $1 <> 'scheduled' THEN $2 ELSE arrived_at END
+       WHERE id = $3 AND archived = FALSE
+       RETURNING *`,
+      [status, new Date(), id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'No active booking found.' });
+    res.json(bookingRowToJson(result.rows[0]));
+  } catch (err) {
+    res.status(500).json({ error: 'Database error: ' + err.message });
+  }
+});
+
+// Staff: remove a booking from staff views without permanently deleting it.
+app.post('/api/bookings/:id/archive', requireStaffAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid booking ID.' });
+  try {
+    const result = await pool.query(
+      `UPDATE bookings SET archived = TRUE, cancelled = TRUE WHERE id = $1 RETURNING *`,
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'No booking found.' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Database error: ' + err.message });
+  }
+});
+
+// Staff: edit a patient's contact/insurance info everywhere it currently appears.
+app.put('/api/patients', requireStaffAuth, async (req, res) => {
+  const { oldPhone, oldName, name, phone, email, insuranceProvider, insuranceMemberId, insuranceGroupNumber, insuranceNotes } = req.body;
+  if (!oldPhone && !oldName) return res.status(400).json({ error: 'Need the current phone or name to find the patient.' });
+  if (!name) return res.status(400).json({ error: 'Patient name is required.' });
+
+  function buildPatientMatch(startIndex, values) {
+    const matchParts = [];
+    let i = startIndex;
+    if (oldPhone) { values.push(oldPhone); matchParts.push(`phone = $${i++}`); }
+    if (oldName) { values.push(oldName); matchParts.push(`LOWER(TRIM(name)) = LOWER(TRIM($${i++}))`); }
+    return '(' + matchParts.join(' OR ') + ')';
+  }
+
+  try {
+    const bookingValues = [name, phone || '', email || '', insuranceProvider || '', insuranceMemberId || ''];
+    const bookingMatch = buildPatientMatch(6, bookingValues);
+    await pool.query(
+      `UPDATE bookings SET name = $1, phone = $2, email = $3, insurance_provider = $4, insurance_member_id = $5
+       WHERE archived = FALSE AND ${bookingMatch}`,
+      bookingValues
+    );
+
+    const invoiceValues = [name, phone || '', email || '', insuranceProvider || '', insuranceMemberId || '', insuranceGroupNumber || '', insuranceNotes || ''];
+    const invoiceMatch = buildPatientMatch(8, invoiceValues);
+    await pool.query(
+      `UPDATE invoices SET name = $1, phone = $2, email = $3, insurance_provider = $4, insurance_member_id = $5,
+          insurance_group_number = $6, insurance_notes = $7
+       WHERE archived = FALSE AND ${invoiceMatch}`,
+      invoiceValues
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Database error: ' + err.message });
+  }
+});
+
+// Staff: remove a patient from the Patients list by archiving that person's matching records.
+app.post('/api/patients/archive', requireStaffAuth, async (req, res) => {
+  const { phone, name } = req.body;
+  if (!phone && !name) return res.status(400).json({ error: 'Need phone or name to archive a patient.' });
+  const matchParts = [];
+  const values = [];
+  if (phone) { values.push(phone); matchParts.push(`phone = $${values.length}`); }
+  if (name) { values.push(name); matchParts.push(`LOWER(TRIM(name)) = LOWER(TRIM($${values.length}))`); }
+  const whereMatch = '(' + matchParts.join(' OR ') + ')';
+  try {
+    await pool.query(`UPDATE bookings SET archived = TRUE, cancelled = TRUE WHERE ${whereMatch}`, values);
+    await pool.query(`UPDATE invoices SET archived = TRUE WHERE ${whereMatch}`, values);
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Database error: ' + err.message });
   }
@@ -283,14 +413,14 @@ app.post('/api/bookings/:date/checkin', async (req, res) => {
   const trimmedName = name.trim();
   try {
     const existing = await pool.query(
-      'SELECT * FROM bookings WHERE date = $1 AND LOWER(TRIM(name)) = LOWER($2) AND cancelled = FALSE',
+      'SELECT * FROM bookings WHERE date = $1 AND LOWER(TRIM(name)) = LOWER($2) AND cancelled = FALSE AND archived = FALSE',
       [date, trimmedName]
     );
     if (existing.rows.length > 0) {
       const row = existing.rows[0];
       if (!row.arrived_at) {
         const updated = await pool.query(
-          'UPDATE bookings SET arrived_at = $1 WHERE id = $2 RETURNING *',
+          `UPDATE bookings SET arrived_at = $1, visit_status = 'waiting' WHERE id = $2 RETURNING *`,
           [new Date(), row.id]
         );
         return res.json(bookingRowToJson(updated.rows[0]));
@@ -299,8 +429,8 @@ app.post('/api/bookings/:date/checkin', async (req, res) => {
     }
     const now = new Date();
     const inserted = await pool.query(
-      `INSERT INTO bookings (date, time, name, phone, email, reason, booked_at, arrived_at, walk_in)
-       VALUES ($1, 'Walk-in', $2, '', '', '', $3, $3, TRUE) RETURNING *`,
+      `INSERT INTO bookings (date, time, name, phone, email, reason, booked_at, arrived_at, walk_in, visit_status)
+       VALUES ($1, 'Walk-in', $2, '', '', '', $3, $3, TRUE, 'waiting') RETURNING *`,
       [date, trimmedName, now]
     );
     res.json(bookingRowToJson(inserted.rows[0]));
@@ -337,14 +467,14 @@ app.post('/api/invoices', requireStaffAuth, async (req, res) => {
 app.post('/api/invoices/:id/insurance', requireStaffAuth, async (req, res) => {
   const { insuranceProvider, insuranceMemberId, insuranceGroupNumber, insuranceNotes } = req.body;
   try {
-    const existing = await pool.query('SELECT insurance_status FROM invoices WHERE id = $1', [req.params.id.toUpperCase()]);
+    const existing = await pool.query('SELECT insurance_status FROM invoices WHERE id = $1 AND archived = FALSE', [req.params.id.toUpperCase()]);
     if (existing.rows.length === 0) return res.status(404).json({ error: 'No balance found for that ID.' });
     // If there wasn't a provider before and now there is, move it into "pending" automatically.
     const newStatus = (!existing.rows[0].insurance_status || existing.rows[0].insurance_status === 'not_billed') && insuranceProvider
       ? 'pending'
       : existing.rows[0].insurance_status;
     const result = await pool.query(
-      `UPDATE invoices SET insurance_provider = $1, insurance_member_id = $2, insurance_group_number = $3, insurance_notes = $4, insurance_status = $5 WHERE id = $6 RETURNING *`,
+      `UPDATE invoices SET insurance_provider = $1, insurance_member_id = $2, insurance_group_number = $3, insurance_notes = $4, insurance_status = $5 WHERE id = $6 AND archived = FALSE RETURNING *`,
       [insuranceProvider || '', insuranceMemberId || '', insuranceGroupNumber || '', insuranceNotes || '', newStatus, req.params.id.toUpperCase()]
     );
     res.json(invoiceRowToJson(result.rows[0]));
@@ -364,7 +494,7 @@ app.post('/api/invoices/:id/insurance-status', requireStaffAuth, async (req, res
   }
   try {
     const result = await pool.query(
-      'UPDATE invoices SET insurance_status = $1 WHERE id = $2 RETURNING *',
+      'UPDATE invoices SET insurance_status = $1 WHERE id = $2 AND archived = FALSE RETURNING *',
       [status, req.params.id.toUpperCase()]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'No balance found for that ID.' });
@@ -374,10 +504,50 @@ app.post('/api/invoices/:id/insurance-status', requireStaffAuth, async (req, res
   }
 });
 
+
+const VALID_INVOICE_STATUSES = ['unpaid', 'paid'];
+
+// Staff: edit an existing balance.
+app.put('/api/invoices/:id', requireStaffAuth, async (req, res) => {
+  const { name, phone, email, amount, status, insuranceProvider, insuranceMemberId, insuranceGroupNumber, insuranceNotes, insuranceStatus } = req.body;
+  if (!name || !amount || Number(amount) <= 0) {
+    return res.status(400).json({ error: 'name and a positive amount are required.' });
+  }
+  if (status && !VALID_INVOICE_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid payment status.' });
+  if (insuranceStatus && !VALID_INSURANCE_STATUSES.includes(insuranceStatus)) return res.status(400).json({ error: 'Invalid insurance status.' });
+  try {
+    const paidAtSql = status === 'paid' ? 'COALESCE(paid_at, NOW())' : 'NULL';
+    const result = await pool.query(
+      `UPDATE invoices
+       SET name = $1, phone = $2, email = $3, amount = $4, status = $5, paid_at = ${paidAtSql},
+           insurance_provider = $6, insurance_member_id = $7, insurance_group_number = $8,
+           insurance_notes = $9, insurance_status = $10
+       WHERE id = $11 AND archived = FALSE
+       RETURNING *`,
+      [name, phone || '', email || '', Number(amount), status || 'unpaid', insuranceProvider || '', insuranceMemberId || '', insuranceGroupNumber || '', insuranceNotes || '', insuranceStatus || (insuranceProvider ? 'pending' : 'not_billed'), req.params.id.toUpperCase()]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'No active balance found for that ID.' });
+    res.json(invoiceRowToJson(result.rows[0]));
+  } catch (err) {
+    res.status(500).json({ error: 'Database error: ' + err.message });
+  }
+});
+
+// Staff: remove a balance from staff views without permanently deleting it.
+app.post('/api/invoices/:id/archive', requireStaffAuth, async (req, res) => {
+  try {
+    const result = await pool.query('UPDATE invoices SET archived = TRUE WHERE id = $1 RETURNING *', [req.params.id.toUpperCase()]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'No balance found for that ID.' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Database error: ' + err.message });
+  }
+});
+
 // Staff: list all invoices
 app.get('/api/invoices', requireStaffAuth, async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM invoices ORDER BY created_at');
+    const result = await pool.query('SELECT * FROM invoices WHERE archived = FALSE ORDER BY created_at');
     res.json(result.rows.map(invoiceRowToJson));
   } catch (err) {
     res.status(500).json({ error: 'Database error: ' + err.message });
@@ -387,7 +557,7 @@ app.get('/api/invoices', requireStaffAuth, async (req, res) => {
 // Patient: look up one invoice by ID
 app.get('/api/invoices/:id', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id.toUpperCase()]);
+    const result = await pool.query('SELECT * FROM invoices WHERE id = $1 AND archived = FALSE', [req.params.id.toUpperCase()]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'No balance found for that ID.' });
     res.json(invoiceRowToJson(result.rows[0]));
   } catch (err) {
@@ -401,7 +571,7 @@ app.get('/api/invoices/:id', async (req, res) => {
 // finish the payment with Stripe directly. The secret key never leaves this server.
 app.post('/api/invoices/:id/create-payment-intent', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id.toUpperCase()]);
+    const result = await pool.query('SELECT * FROM invoices WHERE id = $1 AND archived = FALSE', [req.params.id.toUpperCase()]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'No balance found for that ID.' });
     const invoice = invoiceRowToJson(result.rows[0]);
     if (invoice.status === 'paid') return res.status(409).json({ error: 'This balance is already paid.' });
@@ -424,7 +594,7 @@ app.post('/api/invoices/:id/create-payment-intent', async (req, res) => {
 app.post('/api/invoices/:id/confirm', async (req, res) => {
   const { paymentIntentId } = req.body;
   try {
-    const existing = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id.toUpperCase()]);
+    const existing = await pool.query('SELECT * FROM invoices WHERE id = $1 AND archived = FALSE', [req.params.id.toUpperCase()]);
     if (existing.rows.length === 0) return res.status(404).json({ error: 'No balance found for that ID.' });
 
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
@@ -432,7 +602,7 @@ app.post('/api/invoices/:id/confirm', async (req, res) => {
       return res.status(400).json({ error: 'Payment has not succeeded yet.' });
     }
     const result = await pool.query(
-      `UPDATE invoices SET status = 'paid', paid_at = $1, stripe_payment_intent_id = $2 WHERE id = $3 RETURNING *`,
+      `UPDATE invoices SET status = 'paid', paid_at = $1, stripe_payment_intent_id = $2 WHERE id = $3 AND archived = FALSE RETURNING *`,
       [new Date(), paymentIntentId, req.params.id.toUpperCase()]
     );
     const invoice = invoiceRowToJson(result.rows[0]);
@@ -496,7 +666,7 @@ function timeSlotToMinutes(slot) {
 }
 
   if (!date) return 'I need a specific date to check availability.';
-  const result = await pool.query('SELECT time FROM bookings WHERE date = $1 AND cancelled = FALSE', [date]);
+  const result = await pool.query('SELECT time FROM bookings WHERE date = $1 AND cancelled = FALSE AND archived = FALSE', [date]);
   const taken = result.rows.map(r => r.time);
   let available = VOICE_TIME_SLOTS.filter(t => !taken.includes(t));
 
@@ -515,7 +685,7 @@ async function handleBookAppointment(args) {
   if (!date || !time || !name || !phone) {
     return 'I need a date, time, patient name, and phone number to book this appointment.';
   }
-  const existing = await pool.query('SELECT id FROM bookings WHERE date = $1 AND time = $2 AND cancelled = FALSE', [date, time]);
+  const existing = await pool.query('SELECT id FROM bookings WHERE date = $1 AND time = $2 AND cancelled = FALSE AND archived = FALSE', [date, time]);
   if (existing.rows.length > 0) {
     return `Sorry, ${time} on ${date} was just taken. Could you pick a different time?`;
   }
@@ -537,8 +707,8 @@ async function handleBookAppointment(args) {
 async function handleGetPatientInfo(args) {
   const phone = args.phone;
   if (!phone) return 'I need a phone number to look that up.';
-  const bookingRes = await pool.query('SELECT * FROM bookings WHERE phone = $1 AND cancelled = FALSE ORDER BY booked_at DESC LIMIT 1', [phone]);
-  const invoiceRes = await pool.query('SELECT * FROM invoices WHERE phone = $1 ORDER BY created_at DESC LIMIT 1', [phone]);
+  const bookingRes = await pool.query('SELECT * FROM bookings WHERE phone = $1 AND cancelled = FALSE AND archived = FALSE ORDER BY booked_at DESC LIMIT 1', [phone]);
+  const invoiceRes = await pool.query('SELECT * FROM invoices WHERE phone = $1 AND archived = FALSE ORDER BY created_at DESC LIMIT 1', [phone]);
   if (bookingRes.rows.length === 0 && invoiceRes.rows.length === 0) {
     return "I don't have a record for that phone number yet — this may be a new patient.";
   }
@@ -565,7 +735,7 @@ async function handleSaveInsuranceInfo(args) {
   if (!insuranceProvider) return "I need at least the insurance provider name to save this.";
   const result = await pool.query(
     `UPDATE bookings SET insurance_provider = $1, insurance_member_id = $2
-     WHERE phone = $3 AND cancelled = FALSE AND id = (SELECT id FROM bookings WHERE phone = $3 AND cancelled = FALSE ORDER BY booked_at DESC LIMIT 1)
+     WHERE phone = $3 AND cancelled = FALSE AND archived = FALSE AND id = (SELECT id FROM bookings WHERE phone = $3 AND cancelled = FALSE AND archived = FALSE ORDER BY booked_at DESC LIMIT 1)
      RETURNING *`,
     [insuranceProvider, insuranceMemberId || '', phone]
   );
@@ -584,12 +754,12 @@ async function handleCancelAppointment(args) {
   let result;
   if (date) {
     result = await pool.query(
-      'SELECT * FROM bookings WHERE phone = $1 AND date = $2 AND cancelled = FALSE',
+      'SELECT * FROM bookings WHERE phone = $1 AND date = $2 AND cancelled = FALSE AND archived = FALSE',
       [phone, date]
     );
   } else {
     result = await pool.query(
-      `SELECT * FROM bookings WHERE phone = $1 AND cancelled = FALSE
+      `SELECT * FROM bookings WHERE phone = $1 AND cancelled = FALSE AND archived = FALSE
        AND date >= (SELECT to_char(now() AT TIME ZONE 'America/New_York', 'YYYY-MM-DD'))
        ORDER BY date ASC LIMIT 1`,
       [phone]
