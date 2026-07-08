@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fresh Smiles Dental — Staff Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F6F8F6;
+    --card: #FFFFFF;
+    --ink: #14261F;
+    --ink-soft: #4B5D55;
+    --teal: #167567;
+    --teal-light: #E3F0EA;
+    --gold: #D9A441;
+    --gold-dark: #A9791F;
+    --border: #DCE4DF;
+    --amber: #B3791F;
+    --amber-light: #FBF0DA;
+    --red: #B3432F;
+    --red-light: #FBEAE7;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Inter', sans-serif; padding: 32px 16px 64px; }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 8px; }
+  header img.logo { width: 72px; height: 72px; object-fit: contain; margin-bottom: 8px; }
+  header .eyebrow { font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--teal); font-weight: 600; margin-bottom: 6px; }
+  header h1 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 28px; margin: 0 0 8px; }
+  .home-link { text-align: center; margin-bottom: 24px; }
+  .home-link a { color: var(--ink-soft); font-size: 13px; text-decoration: underline; }
+
+  .tabs { display: flex; justify-content: center; gap: 4px; margin-bottom: 24px; background: var(--teal-light); border-radius: 12px; padding: 4px; max-width: 600px; margin-left: auto; margin-right: auto; }
+  .tab { flex: 1; text-align: center; padding: 10px 4px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 12px; color: var(--ink-soft); }
+  .tab.active { background: white; color: var(--teal); }
+  .tab .count { display: inline-block; margin-left: 4px; opacity: 0.7; }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; }
+  .card h2 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 20px; margin: 0 0 16px; }
+  .section-title { font-family: 'Fraunces', serif; font-weight: 500; font-size: 17px; margin: 24px 0 10px; }
+
+  label { display: block; font-size: 13px; font-weight: 500; margin: 12px 0 6px; color: var(--ink-soft); }
+  input[type=text], input[type=tel], input[type=email], input[type=number], input[type=date], select, textarea {
+    width: 100%; padding: 11px 12px; border-radius: 10px; border: 1.5px solid var(--border);
+    font-family: 'Inter', sans-serif; font-size: 15px; color: var(--ink); background: white;
+  }
+  textarea { resize: vertical; min-height: 70px; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--teal); }
+  .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+  .form-grid .full { grid-column: 1 / -1; }
+  @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } .form-grid .full { grid-column: auto; } }
+  .amount-input { position: relative; }
+  .amount-input span { position: absolute; left: 12px; top: 11px; color: var(--ink-soft); }
+  .amount-input input { padding-left: 26px; }
+
+  button.primary, button.ghost, button.danger, button.status-btn {
+    font-family: 'Inter', sans-serif; font-weight: 600; border-radius: 10px; cursor: pointer; transition: 0.12s ease;
+  }
+  button.primary { font-size: 15px; padding: 12px 22px; border: none; background: var(--gold); color: #3A2A08; width: 100%; margin-top: 18px; }
+  button.primary:hover { background: var(--gold-dark); }
+  button.ghost { font-size: 13px; padding: 8px 12px; border: 1.5px solid var(--border); background: transparent; color: var(--ink-soft); }
+  button.ghost:hover { border-color: var(--teal); color: var(--teal); }
+  button.danger { font-size: 13px; padding: 8px 12px; border: 1.5px solid var(--red-light); background: var(--red-light); color: var(--red); }
+  button.danger:hover { border-color: var(--red); }
+  button.status-btn { font-size: 12px; padding: 7px 10px; border: 1.5px solid var(--border); background: white; color: var(--ink-soft); }
+  button.status-btn.active { background: var(--teal); border-color: var(--teal); color: white; }
+
+  .error-note { font-size: 13px; color: var(--red); margin-top: 12px; padding: 10px 14px; background: var(--red-light); border-radius: 10px; }
+  .success-note { font-size: 13px; color: var(--teal); margin-top: 12px; padding: 10px 14px; background: var(--teal-light); border-radius: 10px; }
+
+  .row { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; background: white; }
+  .row-top { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+  .row .name { font-weight: 600; font-size: 15px; }
+  .row .meta { font-size: 13px; color: var(--ink-soft); margin-top: 3px; line-height: 1.45; }
+  .row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .edit-panel { display: none; margin-top: 14px; padding: 14px; border-radius: 12px; background: var(--bg); border: 1px solid var(--border); }
+  .edit-panel.open { display: block; }
+  .inline-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+  .badge { font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; display: inline-block; }
+  .badge.unpaid, .badge.pending, .badge.waiting { background: var(--amber-light); color: var(--amber); }
+  .badge.paid, .badge.done { background: var(--teal-light); color: var(--teal); }
+  .badge.in_room { background: #E7EEFF; color: #3553A6; }
+  .badge.not_billed, .badge.scheduled { background: var(--border); color: var(--ink-soft); }
+  .badge.denied { background: var(--red-light); color: var(--red); }
+  .insurance-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+  .insurance-select { font-size: 12px; padding: 5px 8px; border-radius: 8px; border: 1.5px solid var(--border); font-family: 'Inter', sans-serif; width: auto; }
+
+  .empty-state { text-align: center; color: var(--ink-soft); padding: 24px; font-size: 14px; }
+  .refresh-note { text-align: center; font-size: 12px; color: var(--ink-soft); margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img class="logo" src="logo.png" alt="Fresh Smiles Dental logo">
+    <div class="eyebrow">Fresh Smiles Dental</div>
+    <h1>Staff dashboard</h1>
+  </header>
+  <div class="home-link"><a href="index.html">← Back to home</a></div>
+
+  <div class="tabs">
+    <div class="tab active" id="tabBookings">Upcoming<span class="count" id="countBookings"></span></div>
+    <div class="tab" id="tabArrived">Arrived<span class="count" id="countArrived"></span></div>
+    <div class="tab" id="tabBalances">Balances<span class="count" id="countBalances"></span></div>
+    <div class="tab" id="tabPatients">Patients<span class="count" id="countPatients"></span></div>
+  </div>
+
+  <div class="card" id="cardArea"></div>
+</div>
+
+<script>
+const API_BASE = window.location.origin;
+let currentTab = 'bookings';
+let refreshInterval = null;
+let lastBookings = [];
+let lastInvoices = [];
+let lastPatients = [];
+let bookingsFetchFailed = false;
+let invoicesFetchFailed = false;
+
+const ACCEPTED_INSURANCES = [
+  'Delta Dental', 'Aetna', 'Blue Cross Blue Shield', 'UnitedHealthcare',
+  'Dentaquest', 'Metroplus', 'Emblem', 'Cigna', 'MetLife', 'Guardian',
+  'Humana', 'Fidelis', 'Healthy', 'Sids'
+];
+
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[ch]));
+}
+function val(value) { return esc(value ?? ''); }
+function todayKey() { return new Date().toISOString().slice(0, 10); }
+function formatDateLabel(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+function formatWait(arrivedAt) {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(arrivedAt).getTime()) / 60000));
+  if (mins < 60) return mins + 'm';
+  return Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm';
+}
+function formatMoney(n) { return Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' }); }
+function cleanStatus(s) { return String(s || '').replace('_', ' '); }
+function statusLabel(s) {
+  return { scheduled: 'Scheduled', waiting: 'Waiting', in_room: 'In room', done: 'Done' }[s] || s;
+}
+function statusBadge(status) {
+  const s = status || 'scheduled';
+  return `<span class="badge ${esc(s)}">${esc(statusLabel(s))}</span>`;
+}
+function insuranceOptions(currentValue) {
+  const current = currentValue || '';
+  const known = ACCEPTED_INSURANCES.includes(current);
+  const options = ACCEPTED_INSURANCES.map(name => `<option value="${esc(name)}" ${current === name ? 'selected' : ''}>${esc(name)}</option>`).join('');
+  return `${options}<option value="__other__" ${current && !known ? 'selected' : ''}>Other</option>`;
+}
+function renderInsuranceField(selectId, otherId, currentValue) {
+  const current = currentValue || '';
+  const isOther = current && !ACCEPTED_INSURANCES.includes(current);
+  return `
+    <select id="${selectId}" class="insurance-provider-select">
+      <option value="">Select insurance...</option>
+      ${insuranceOptions(current)}
+    </select>
+    <input type="text" id="${otherId}" placeholder="Enter insurance name" value="${val(isOther ? current : '')}" style="margin-top:8px; ${isOther ? '' : 'display:none;'}">
+  `;
+}
+function wireInsuranceField(selectId, otherId) {
+  const select = document.getElementById(selectId);
+  const other = document.getElementById(otherId);
+  if (!select || !other) return;
+  select.onchange = () => { other.style.display = select.value === '__other__' ? 'block' : 'none'; };
+}
+function getInsuranceValue(selectId, otherId) {
+  const select = document.getElementById(selectId);
+  const other = document.getElementById(otherId);
+  if (!select) return '';
+  return select.value === '__other__' ? (other ? other.value.trim() : '') : select.value;
+}
+
+async function apiRequest(path, options = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    credentials: 'same-origin',
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
+  });
+  const text = await res.text();
+  let data = {};
+  try { data = text ? JSON.parse(text) : {}; } catch (e) { data = { error: text }; }
+  if (!res.ok) throw new Error(data.error || 'Request failed.');
+  return data;
+}
+async function fetchBookings(includeCancelled = false) {
+  try {
+    const data = await apiRequest('/api/bookings' + (includeCancelled ? '?includeCancelled=true' : ''));
+    bookingsFetchFailed = false;
+    return data;
+  } catch (e) {
+    bookingsFetchFailed = true;
+    return [];
+  }
+}
+async function fetchInvoices() {
+  try {
+    const data = await apiRequest('/api/invoices');
+    invoicesFetchFailed = false;
+    return data;
+  } catch (e) {
+    invoicesFetchFailed = true;
+    return [];
+  }
+}
+async function createInvoice(payload) { return apiRequest('/api/invoices', { method: 'POST', body: JSON.stringify(payload) }); }
+async function updateBooking(id, payload) { return apiRequest(`/api/bookings/${id}`, { method: 'PUT', body: JSON.stringify(payload) }); }
+async function updateVisitStatus(id, status) { return apiRequest(`/api/bookings/${id}/visit-status`, { method: 'POST', body: JSON.stringify({ status }) }); }
+async function archiveBooking(id) { return apiRequest(`/api/bookings/${id}/archive`, { method: 'POST', body: JSON.stringify({}) }); }
+async function updateInvoice(id, payload) { return apiRequest(`/api/invoices/${id}`, { method: 'PUT', body: JSON.stringify(payload) }); }
+async function updateInsuranceStatus(id, status) { return apiRequest(`/api/invoices/${id}/insurance-status`, { method: 'POST', body: JSON.stringify({ status }) }); }
+async function archiveInvoice(id) { return apiRequest(`/api/invoices/${id}/archive`, { method: 'POST', body: JSON.stringify({}) }); }
+async function updatePatient(payload) { return apiRequest('/api/patients', { method: 'PUT', body: JSON.stringify(payload) }); }
+async function archivePatient(payload) { return apiRequest('/api/patients/archive', { method: 'POST', body: JSON.stringify(payload) }); }
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tabBookings').classList.toggle('active', tab === 'bookings');
+  document.getElementById('tabArrived').classList.toggle('active', tab === 'arrived');
+  document.getElementById('tabBalances').classList.toggle('active', tab === 'balances');
+  document.getElementById('tabPatients').classList.toggle('active', tab === 'patients');
+  if (refreshInterval) { clearInterval(refreshInterval); refreshInterval = null; }
+  render();
+  if (tab === 'arrived') refreshInterval = setInterval(render, 15000);
+}
+
+document.getElementById('tabBookings').onclick = () => switchTab('bookings');
+document.getElementById('tabArrived').onclick = () => switchTab('arrived');
+document.getElementById('tabBalances').onclick = () => switchTab('balances');
+document.getElementById('tabPatients').onclick = () => switchTab('patients');
+
+function bookingEditForm(b, prefix) {
+  return `
+    <div class="edit-panel" id="${prefix}-edit-${b.id}">
+      <div class="form-grid">
+        <div><label>Name</label><input type="text" id="${prefix}-name-${b.id}" value="${val(b.name)}"></div>
+        <div><label>Phone</label><input type="tel" id="${prefix}-phone-${b.id}" value="${val(b.phone)}"></div>
+        <div><label>Email</label><input type="email" id="${prefix}-email-${b.id}" value="${val(b.email)}"></div>
+        <div><label>Date of birth</label><input type="text" id="${prefix}-dob-${b.id}" placeholder="MM/DD/YYYY" value="${val(b.dateOfBirth)}"></div>
+        <div class="full"><label>Home address</label><input type="text" id="${prefix}-address-${b.id}" value="${val(b.homeAddress)}"></div>
+        <div><label>Reason</label><input type="text" id="${prefix}-reason-${b.id}" value="${val(b.reason)}"></div>
+        <div><label>Date</label><input type="date" id="${prefix}-date-${b.id}" value="${val(b.date)}"></div>
+        <div><label>Time</label><input type="text" id="${prefix}-time-${b.id}" value="${val(b.time)}"></div>
+        <div><label>Insurance provider</label><div id="${prefix}-insurance-field-${b.id}"></div></div>
+        <div><label>Member ID</label><input type="text" id="${prefix}-member-${b.id}" value="${val(b.insuranceMemberId)}"></div>
+      </div>
+      <div class="inline-actions">
+        <button class="primary save-booking" data-id="${b.id}" data-prefix="${prefix}" style="width:auto; margin-top:10px;">Save</button>
+        <button class="ghost close-edit" data-panel="${prefix}-edit-${b.id}" style="margin-top:10px;">Cancel</button>
+      </div>
+    </div>
+  `;
+}
+function wireBookingForms(bookings, prefix) {
+  bookings.forEach(b => {
+    const field = document.getElementById(`${prefix}-insurance-field-${b.id}`);
+    if (field) {
+      field.innerHTML = renderInsuranceField(`${prefix}-insurance-${b.id}`, `${prefix}-insurance-other-${b.id}`, b.insuranceProvider || '');
+      wireInsuranceField(`${prefix}-insurance-${b.id}`, `${prefix}-insurance-other-${b.id}`);
+    }
+  });
+  document.querySelectorAll('.toggle-booking-edit').forEach(btn => btn.onclick = () => {
+    document.getElementById(btn.dataset.panel).classList.toggle('open');
+  });
+  document.querySelectorAll('.close-edit').forEach(btn => btn.onclick = () => {
+    document.getElementById(btn.dataset.panel).classList.remove('open');
+  });
+  document.querySelectorAll('.save-booking').forEach(btn => btn.onclick = async () => {
+    const id = btn.dataset.id;
+    const p = btn.dataset.prefix;
+    try {
+      await updateBooking(id, {
+        name: document.getElementById(`${p}-name-${id}`).value.trim(),
+        phone: document.getElementById(`${p}-phone-${id}`).value.trim(),
+        email: document.getElementById(`${p}-email-${id}`).value.trim(),
+        dateOfBirth: document.getElementById(`${p}-dob-${id}`).value.trim(),
+        homeAddress: document.getElementById(`${p}-address-${id}`).value.trim(),
+        reason: document.getElementById(`${p}-reason-${id}`).value.trim(),
+        date: document.getElementById(`${p}-date-${id}`).value,
+        time: document.getElementById(`${p}-time-${id}`).value.trim(),
+        insuranceProvider: getInsuranceValue(`${p}-insurance-${id}`, `${p}-insurance-other-${id}`),
+        insuranceMemberId: document.getElementById(`${p}-member-${id}`).value.trim()
+      });
+      render();
+    } catch (e) { alert(e.message || 'Could not save appointment.'); }
+  });
+  document.querySelectorAll('.remove-booking').forEach(btn => btn.onclick = async () => {
+    if (!confirm('Remove this appointment/visit from the staff dashboard? The record will be archived, not permanently deleted.')) return;
+    try { await archiveBooking(btn.dataset.id); render(); } catch (e) { alert(e.message || 'Could not remove.'); }
+  });
+}
+function bookingRow(b, prefix, options = {}) {
+  const status = b.visitStatus || (b.arrivedAt ? 'waiting' : 'scheduled');
+  return `
+    <div class="row">
+      <div class="row-top">
+        <div>
+          <div class="name">${esc(b.name)}</div>
+          <div class="meta">${b.walkIn ? 'Walk-in' : formatDateLabel(b.date) + ' · ' + esc(b.time)} · ${esc(b.phone || 'no phone')}</div>
+          ${b.email ? `<div class="meta">${esc(b.email)}</div>` : ''}
+          ${b.dateOfBirth ? `<div class="meta">DOB: ${esc(b.dateOfBirth)}</div>` : ''}
+          ${b.homeAddress ? `<div class="meta">Address: ${esc(b.homeAddress)}</div>` : ''}
+          ${b.reason ? `<div class="meta">reason: ${esc(b.reason)}</div>` : ''}
+          ${b.insuranceProvider ? `<div class="meta">${esc(b.insuranceProvider)}${b.insuranceMemberId ? ' · ' + esc(b.insuranceMemberId) : ''}</div>` : ''}
+          ${b.arrivedAt ? `<div class="meta">waiting time: ${formatWait(b.arrivedAt)}</div>` : ''}
+        </div>
+        <div>${statusBadge(status)}</div>
+      </div>
+      ${options.statusButtons ? `
+        <div class="row-actions">
+          <button class="status-btn ${status === 'waiting' ? 'active' : ''}" data-id="${b.id}" data-status="waiting">Waiting</button>
+          <button class="status-btn ${status === 'in_room' ? 'active' : ''}" data-id="${b.id}" data-status="in_room">In room</button>
+          <button class="status-btn ${status === 'done' ? 'active' : ''}" data-id="${b.id}" data-status="done">Done</button>
+        </div>` : ''}
+      <div class="row-actions">
+        <button class="ghost toggle-booking-edit" data-panel="${prefix}-edit-${b.id}">Edit</button>
+        <button class="danger remove-booking" data-id="${b.id}">Remove</button>
+      </div>
+      ${bookingEditForm(b, prefix)}
+    </div>
+  `;
+}
+
+async function renderBookings() {
+  const card = document.getElementById('cardArea');
+  const bookings = await fetchBookings(false);
+  lastBookings = bookings;
+  const today = todayKey();
+  const upcoming = bookings
+    .filter(b => b.date >= today && !b.walkIn && !b.arrivedAt && (b.visitStatus || 'scheduled') !== 'done')
+    .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  document.getElementById('countBookings').textContent = upcoming.length ? ' (' + upcoming.length + ')' : '';
+  card.innerHTML = '<h2>Upcoming appointments</h2><div id="list"></div>';
+  const list = document.getElementById('list');
+  if (!upcoming.length) {
+    list.innerHTML = bookingsFetchFailed ? '<div class="empty-state">Could not reach the server right now — try refreshing.</div>' : '<div class="empty-state">No upcoming appointments.</div>';
+    return;
+  }
+  list.innerHTML = upcoming.map(b => bookingRow(b, 'booking')).join('');
+  wireBookingForms(upcoming, 'booking');
+}
+
+async function renderArrived() {
+  const card = document.getElementById('cardArea');
+  const bookings = await fetchBookings(false);
+  const today = todayKey();
+  const arrived = bookings.filter(b => b.date === today && b.arrivedAt).sort((a, b) => new Date(a.arrivedAt) - new Date(b.arrivedAt));
+  const active = arrived.filter(b => (b.visitStatus || 'waiting') !== 'done');
+  const done = arrived.filter(b => (b.visitStatus || 'waiting') === 'done');
+  document.getElementById('countArrived').textContent = active.length ? ' (' + active.length + ')' : '';
+  card.innerHTML = '<h2>Arrived today</h2><div id="list"></div><div class="refresh-note">Updates automatically every 15 seconds</div>';
+  const list = document.getElementById('list');
+  if (!arrived.length) {
+    list.innerHTML = bookingsFetchFailed ? '<div class="empty-state">Could not reach the server right now — try refreshing.</div>' : '<div class="empty-state">No one has checked in yet.</div>';
+    return;
+  }
+  list.innerHTML = `
+    ${active.length ? '<div class="section-title">Active visits</div>' + active.map(b => bookingRow(b, 'arrived', { statusButtons: true })).join('') : '<div class="empty-state">No active waiting-room patients.</div>'}
+    ${done.length ? '<div class="section-title">Done today</div>' + done.map(b => bookingRow(b, 'arrivedDone', { statusButtons: true })).join('') : ''}
+  `;
+  wireBookingForms(arrived, 'arrived');
+  wireBookingForms(arrived, 'arrivedDone');
+  document.querySelectorAll('.status-btn').forEach(btn => btn.onclick = async () => {
+    try { await updateVisitStatus(btn.dataset.id, btn.dataset.status); render(); } catch (e) { alert(e.message || 'Could not update status.'); }
+  });
+}
+
+function invoiceEditForm(inv) {
+  return `
+    <div class="edit-panel" id="invoice-edit-${inv.id}">
+      <div class="form-grid">
+        <div><label>Name</label><input type="text" id="invoice-name-${inv.id}" value="${val(inv.name)}"></div>
+        <div><label>Phone</label><input type="tel" id="invoice-phone-${inv.id}" value="${val(inv.phone)}"></div>
+        <div><label>Email</label><input type="email" id="invoice-email-${inv.id}" value="${val(inv.email)}"></div>
+        <div><label>Date of birth</label><input type="text" id="invoice-dob-${inv.id}" placeholder="MM/DD/YYYY" value="${val(inv.dateOfBirth)}"></div>
+        <div class="full"><label>Home address</label><input type="text" id="invoice-address-${inv.id}" value="${val(inv.homeAddress)}"></div>
+        <div><label>Amount</label><input type="number" min="0" step="0.01" id="invoice-amount-${inv.id}" value="${val(inv.amount)}"></div>
+        <div><label>Payment status</label><select id="invoice-status-${inv.id}"><option value="unpaid" ${inv.status === 'unpaid' ? 'selected' : ''}>Unpaid</option><option value="paid" ${inv.status === 'paid' ? 'selected' : ''}>Paid</option></select></div>
+        <div><label>Insurance status</label><select id="invoice-ins-status-${inv.id}"><option value="not_billed" ${inv.insuranceStatus === 'not_billed' ? 'selected' : ''}>Not billed</option><option value="pending" ${inv.insuranceStatus === 'pending' ? 'selected' : ''}>Pending</option><option value="paid" ${inv.insuranceStatus === 'paid' ? 'selected' : ''}>Insurance paid</option><option value="denied" ${inv.insuranceStatus === 'denied' ? 'selected' : ''}>Denied</option></select></div>
+        <div><label>Insurance provider</label><div id="invoice-insurance-field-${inv.id}"></div></div>
+        <div><label>Member ID</label><input type="text" id="invoice-member-${inv.id}" value="${val(inv.insuranceMemberId)}"></div>
+        <div><label>Group number</label><input type="text" id="invoice-group-${inv.id}" value="${val(inv.insuranceGroupNumber)}"></div>
+        <div><label>Insurance notes</label><input type="text" id="invoice-notes-${inv.id}" value="${val(inv.insuranceNotes)}"></div>
+      </div>
+      <div class="inline-actions">
+        <button class="primary save-invoice" data-id="${inv.id}" style="width:auto; margin-top:10px;">Save balance</button>
+        <button class="ghost close-edit" data-panel="invoice-edit-${inv.id}" style="margin-top:10px;">Cancel</button>
+      </div>
+    </div>
+  `;
+}
+async function renderBalances() {
+  const card = document.getElementById('cardArea');
+  const invoices = await fetchInvoices();
+  lastInvoices = invoices;
+  const unpaidCount = invoices.filter(i => i.status === 'unpaid').length;
+  document.getElementById('countBalances').textContent = unpaidCount ? ' (' + unpaidCount + ')' : '';
+  card.innerHTML = `
+    <h2>Create a balance</h2>
+    <div class="form-grid">
+      <div><label for="pName">Patient name</label><input type="text" id="pName" placeholder="Jane Rivera"></div>
+      <div><label for="pPhone">Phone</label><input type="tel" id="pPhone" placeholder="(347) 555-0134"></div>
+      <div><label for="pEmail">Email</label><input type="email" id="pEmail" placeholder="jane@email.com"></div>
+      <div><label for="pDateOfBirth">Date of birth</label><input type="text" id="pDateOfBirth" placeholder="MM/DD/YYYY"></div>
+      <div class="full"><label for="pHomeAddress">Home address</label><input type="text" id="pHomeAddress" placeholder="123 Fresh Smile Ave, Queens, NY"></div>
+      <div><label for="pAmount">Amount</label><div class="amount-input"><span>$</span><input type="number" id="pAmount" min="0" step="0.01" placeholder="125.00"></div></div>
+      <div><label>Insurance provider</label><div id="pInsuranceProviderField"></div></div>
+      <div><label>Insurance member ID</label><input type="text" id="pInsuranceMemberId" placeholder="DD-123456"></div>
+      <div><label>Insurance group number</label><input type="text" id="pInsuranceGroupNumber" placeholder="GRP-789"></div>
+      <div><label>Insurance notes</label><input type="text" id="pInsuranceNotes" placeholder="Notes"></div>
+    </div>
+    <button class="primary" id="createBtn">Create balance</button>
+    <div id="createError"></div>
+    <h2 style="margin-top:32px;">All balances</h2>
+    <div id="list"></div>
+  `;
+  document.getElementById('pInsuranceProviderField').innerHTML = renderInsuranceField('pInsuranceProvider', 'pInsuranceProviderOther', '');
+  wireInsuranceField('pInsuranceProvider', 'pInsuranceProviderOther');
+  document.getElementById('createBtn').onclick = async () => {
+    const payload = {
+      name: document.getElementById('pName').value.trim(),
+      phone: document.getElementById('pPhone').value.trim(),
+      email: document.getElementById('pEmail').value.trim(),
+      dateOfBirth: document.getElementById('pDateOfBirth').value.trim(),
+      homeAddress: document.getElementById('pHomeAddress').value.trim(),
+      amount: parseFloat(document.getElementById('pAmount').value),
+      insuranceProvider: getInsuranceValue('pInsuranceProvider', 'pInsuranceProviderOther'),
+      insuranceMemberId: document.getElementById('pInsuranceMemberId').value.trim(),
+      insuranceGroupNumber: document.getElementById('pInsuranceGroupNumber').value.trim(),
+      insuranceNotes: document.getElementById('pInsuranceNotes').value.trim()
+    };
+    if (!payload.name || !payload.amount || payload.amount <= 0) {
+      document.getElementById('createError').innerHTML = '<div class="error-note">Enter a patient name and an amount greater than $0.</div>';
+      return;
+    }
+    try { await createInvoice(payload); render(); } catch (e) { document.getElementById('createError').innerHTML = '<div class="error-note">' + esc(e.message) + '</div>'; }
+  };
+  const list = document.getElementById('list');
+  if (!invoices.length) {
+    list.innerHTML = invoicesFetchFailed ? '<div class="empty-state">Could not reach the server right now — try refreshing.</div>' : '<div class="empty-state">No balances created yet.</div>';
+    return;
+  }
+  const sorted = [...invoices].sort((a, b) => a.status !== b.status ? (a.status === 'unpaid' ? -1 : 1) : new Date(b.createdAt) - new Date(a.createdAt));
+  list.innerHTML = sorted.map(inv => `
+    <div class="row">
+      <div class="row-top">
+        <div>
+          <div class="name">${esc(inv.name)}</div>
+          <div class="meta">${esc(inv.id)} ${inv.phone ? '· ' + esc(inv.phone) : ''}${inv.email ? ' · ' + esc(inv.email) : ''}</div>
+          ${inv.dateOfBirth ? `<div class="meta">DOB: ${esc(inv.dateOfBirth)}</div>` : ''}
+          ${inv.homeAddress ? `<div class="meta">Address: ${esc(inv.homeAddress)}</div>` : ''}
+          ${inv.insuranceProvider ? `<div class="meta">${esc(inv.insuranceProvider)}${inv.insuranceMemberId ? ' · ' + esc(inv.insuranceMemberId) : ''}${inv.insuranceGroupNumber ? ' · grp ' + esc(inv.insuranceGroupNumber) : ''}</div>` : '<div class="meta">No insurance on file</div>'}
+          ${inv.insuranceNotes ? `<div class="meta">note: ${esc(inv.insuranceNotes)}</div>` : ''}
+        </div>
+        <div style="text-align:right;">
+          <div class="name">${formatMoney(inv.amount)}</div>
+          <span class="badge ${esc(inv.status)}">${esc(inv.status)}</span>
+          <span class="badge ${esc(inv.insuranceStatus)}" style="margin-top:4px;">ins: ${esc(cleanStatus(inv.insuranceStatus))}</span>
+        </div>
+      </div>
+      <div class="row-actions">
+        <button class="ghost toggle-invoice-edit" data-panel="invoice-edit-${inv.id}">Edit</button>
+        <button class="danger remove-invoice" data-id="${inv.id}">Remove</button>
+      </div>
+      ${invoiceEditForm(inv)}
+    </div>
+  `).join('');
+  sorted.forEach(inv => {
+    const field = document.getElementById(`invoice-insurance-field-${inv.id}`);
+    if (field) {
+      field.innerHTML = renderInsuranceField(`invoice-insurance-${inv.id}`, `invoice-insurance-other-${inv.id}`, inv.insuranceProvider || '');
+      wireInsuranceField(`invoice-insurance-${inv.id}`, `invoice-insurance-other-${inv.id}`);
+    }
+  });
+  document.querySelectorAll('.toggle-invoice-edit').forEach(btn => btn.onclick = () => document.getElementById(btn.dataset.panel).classList.toggle('open'));
+  document.querySelectorAll('.close-edit').forEach(btn => btn.onclick = () => document.getElementById(btn.dataset.panel).classList.remove('open'));
+  document.querySelectorAll('.save-invoice').forEach(btn => btn.onclick = async () => {
+    const id = btn.dataset.id;
+    try {
+      await updateInvoice(id, {
+        name: document.getElementById(`invoice-name-${id}`).value.trim(),
+        phone: document.getElementById(`invoice-phone-${id}`).value.trim(),
+        email: document.getElementById(`invoice-email-${id}`).value.trim(),
+        dateOfBirth: document.getElementById(`invoice-dob-${id}`).value.trim(),
+        homeAddress: document.getElementById(`invoice-address-${id}`).value.trim(),
+        amount: parseFloat(document.getElementById(`invoice-amount-${id}`).value),
+        status: document.getElementById(`invoice-status-${id}`).value,
+        insuranceStatus: document.getElementById(`invoice-ins-status-${id}`).value,
+        insuranceProvider: getInsuranceValue(`invoice-insurance-${id}`, `invoice-insurance-other-${id}`),
+        insuranceMemberId: document.getElementById(`invoice-member-${id}`).value.trim(),
+        insuranceGroupNumber: document.getElementById(`invoice-group-${id}`).value.trim(),
+        insuranceNotes: document.getElementById(`invoice-notes-${id}`).value.trim()
+      });
+      render();
+    } catch (e) { alert(e.message || 'Could not save balance.'); }
+  });
+  document.querySelectorAll('.remove-invoice').forEach(btn => btn.onclick = async () => {
+    if (!confirm('Remove this balance from the staff dashboard? It will be archived, not permanently deleted.')) return;
+    try { await archiveInvoice(btn.dataset.id); render(); } catch (e) { alert(e.message || 'Could not remove balance.'); }
+  });
+}
+
+function buildPatients(bookings, invoices) {
+  const byKey = {};
+  function keyFor(name, phone) { return phone ? 'phone:' + phone : 'name:' + (name || '').toLowerCase(); }
+  bookings.forEach(b => {
+    if (!b.name && !b.phone) return;
+    const key = keyFor(b.name, b.phone);
+    byKey[key] = { ...(byKey[key] || {}), oldPhone: b.phone || '', oldName: b.name || '', name: b.name || '', phone: b.phone || '', email: b.email || '', dateOfBirth: b.dateOfBirth || byKey[key]?.dateOfBirth || '', homeAddress: b.homeAddress || byKey[key]?.homeAddress || '', insuranceProvider: b.insuranceProvider || '', insuranceMemberId: b.insuranceMemberId || '', insuranceGroupNumber: byKey[key]?.insuranceGroupNumber || '', insuranceNotes: byKey[key]?.insuranceNotes || '' };
+  });
+  invoices.forEach(inv => {
+    if (!inv.name && !inv.phone) return;
+    const key = keyFor(inv.name, inv.phone);
+    const existing = byKey[key] || {};
+    byKey[key] = {
+      ...existing,
+      oldPhone: existing.oldPhone || inv.phone || '',
+      oldName: existing.oldName || inv.name || '',
+      name: inv.name || existing.name || '',
+      phone: inv.phone || existing.phone || '',
+      email: inv.email || existing.email || '',
+      dateOfBirth: inv.dateOfBirth || existing.dateOfBirth || '',
+      homeAddress: inv.homeAddress || existing.homeAddress || '',
+      insuranceProvider: inv.insuranceProvider || existing.insuranceProvider || '',
+      insuranceMemberId: inv.insuranceMemberId || existing.insuranceMemberId || '',
+      insuranceGroupNumber: inv.insuranceGroupNumber || existing.insuranceGroupNumber || '',
+      insuranceNotes: inv.insuranceNotes || existing.insuranceNotes || ''
+    };
+  });
+  return Object.values(byKey).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+}
+function patientEditForm(p, idx) {
+  return `
+    <div class="edit-panel" id="patient-edit-${idx}">
+      <div class="form-grid">
+        <div><label>Name</label><input type="text" id="patient-name-${idx}" value="${val(p.name)}"></div>
+        <div><label>Phone</label><input type="tel" id="patient-phone-${idx}" value="${val(p.phone)}"></div>
+        <div><label>Email</label><input type="email" id="patient-email-${idx}" value="${val(p.email)}"></div>
+        <div><label>Date of birth</label><input type="text" id="patient-dob-${idx}" placeholder="MM/DD/YYYY" value="${val(p.dateOfBirth)}"></div>
+        <div class="full"><label>Home address</label><input type="text" id="patient-address-${idx}" value="${val(p.homeAddress)}"></div>
+        <div><label>Insurance provider</label><div id="patient-insurance-field-${idx}"></div></div>
+        <div><label>Member ID</label><input type="text" id="patient-member-${idx}" value="${val(p.insuranceMemberId)}"></div>
+        <div><label>Group number</label><input type="text" id="patient-group-${idx}" value="${val(p.insuranceGroupNumber)}"></div>
+        <div class="full"><label>Insurance notes</label><input type="text" id="patient-notes-${idx}" value="${val(p.insuranceNotes)}"></div>
+      </div>
+      <div class="inline-actions">
+        <button class="primary save-patient" data-idx="${idx}" style="width:auto; margin-top:10px;">Save patient</button>
+        <button class="ghost close-edit" data-panel="patient-edit-${idx}" style="margin-top:10px;">Cancel</button>
+      </div>
+    </div>
+  `;
+}
+async function renderPatients() {
+  const card = document.getElementById('cardArea');
+  const [bookings, invoices] = await Promise.all([fetchBookings(true), fetchInvoices()]);
+  const patients = buildPatients(bookings, invoices);
+  lastPatients = patients;
+  document.getElementById('countPatients').textContent = patients.length ? ' (' + patients.length + ')' : '';
+  card.innerHTML = `
+    <h2>Patients</h2>
+    <input type="text" id="patientSearch" placeholder="Search by name or phone" style="width:100%; padding:10px 12px; border-radius:10px; border:1.5px solid var(--border); margin-bottom:16px; font-family:'Inter',sans-serif; font-size:14px;">
+    <div id="list"></div>
+  `;
+  const list = document.getElementById('list');
+  function renderPatientList(filter) {
+    const f = (filter || '').toLowerCase();
+    const filtered = patients.map((p, idx) => ({ p, idx })).filter(({ p }) => (p.name || '').toLowerCase().includes(f) || (p.phone || '').includes(f));
+    if (!filtered.length) {
+      list.innerHTML = (bookingsFetchFailed || invoicesFetchFailed) ? '<div class="empty-state">Could not reach the server right now — try refreshing.</div>' : '<div class="empty-state">No patients found.</div>';
+      return;
+    }
+    list.innerHTML = filtered.map(({ p, idx }) => `
+      <div class="row">
+        <div class="row-top">
+          <div>
+            <div class="name">${esc(p.name || 'Unnamed patient')}</div>
+            <div class="meta">${esc(p.phone || 'no phone')}${p.email ? ' · ' + esc(p.email) : ''}</div>
+            ${p.dateOfBirth ? `<div class="meta">DOB: ${esc(p.dateOfBirth)}</div>` : ''}
+            ${p.homeAddress ? `<div class="meta">Address: ${esc(p.homeAddress)}</div>` : ''}
+            ${p.insuranceProvider ? `<div class="meta"><strong>${esc(p.insuranceProvider)}</strong>${p.insuranceMemberId ? ' · ' + esc(p.insuranceMemberId) : ''}${p.insuranceGroupNumber ? ' · grp ' + esc(p.insuranceGroupNumber) : ''}</div>${p.insuranceNotes ? `<div class="meta">note: ${esc(p.insuranceNotes)}</div>` : ''}` : '<div class="meta">No insurance on file</div>'}
+          </div>
+        </div>
+        <div class="row-actions">
+          <button class="ghost toggle-patient-edit" data-panel="patient-edit-${idx}">Edit</button>
+          <button class="danger remove-patient" data-idx="${idx}">Remove</button>
+        </div>
+        ${patientEditForm(p, idx)}
+      </div>
+    `).join('');
+    filtered.forEach(({ p, idx }) => {
+      const field = document.getElementById(`patient-insurance-field-${idx}`);
+      if (field) {
+        field.innerHTML = renderInsuranceField(`patient-insurance-${idx}`, `patient-insurance-other-${idx}`, p.insuranceProvider || '');
+        wireInsuranceField(`patient-insurance-${idx}`, `patient-insurance-other-${idx}`);
+      }
+    });
+    document.querySelectorAll('.toggle-patient-edit').forEach(btn => btn.onclick = () => document.getElementById(btn.dataset.panel).classList.toggle('open'));
+    document.querySelectorAll('.close-edit').forEach(btn => btn.onclick = () => document.getElementById(btn.dataset.panel).classList.remove('open'));
+    document.querySelectorAll('.save-patient').forEach(btn => btn.onclick = async () => {
+      const idx = Number(btn.dataset.idx);
+      const p = patients[idx];
+      try {
+        await updatePatient({
+          oldPhone: p.oldPhone,
+          oldName: p.oldName,
+          name: document.getElementById(`patient-name-${idx}`).value.trim(),
+          phone: document.getElementById(`patient-phone-${idx}`).value.trim(),
+          email: document.getElementById(`patient-email-${idx}`).value.trim(),
+          dateOfBirth: document.getElementById(`patient-dob-${idx}`).value.trim(),
+          homeAddress: document.getElementById(`patient-address-${idx}`).value.trim(),
+          insuranceProvider: getInsuranceValue(`patient-insurance-${idx}`, `patient-insurance-other-${idx}`),
+          insuranceMemberId: document.getElementById(`patient-member-${idx}`).value.trim(),
+          insuranceGroupNumber: document.getElementById(`patient-group-${idx}`).value.trim(),
+          insuranceNotes: document.getElementById(`patient-notes-${idx}`).value.trim()
+        });
+        render();
+      } catch (e) { alert(e.message || 'Could not save patient.'); }
+    });
+    document.querySelectorAll('.remove-patient').forEach(btn => btn.onclick = async () => {
+      const p = patients[Number(btn.dataset.idx)];
+      if (!confirm('Remove this patient from the staff dashboard? Matching records will be archived, not permanently deleted.')) return;
+      try { await archivePatient({ phone: p.phone, name: p.name }); render(); } catch (e) { alert(e.message || 'Could not remove patient.'); }
+    });
+  }
+  renderPatientList('');
+  document.getElementById('patientSearch').oninput = e => renderPatientList(e.target.value);
+}
+
+async function render() {
+  if (currentTab === 'bookings') return renderBookings();
+  if (currentTab === 'arrived') return renderArrived();
+  if (currentTab === 'balances') return renderBalances();
+  if (currentTab === 'patients') return renderPatients();
+}
+
+render();
+</script>
+</body>
+</html>
