@@ -332,6 +332,20 @@ app.post('/api/bookings/:id/visit-status', requireStaffAuth, async (req, res) =>
   if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid booking ID.' });
   if (!VALID_VISIT_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid visit status.' });
   try {
+    // DOB and home address are optional at booking time, but a patient can't
+    // be brought back to a room without them on file — insurance billing and
+    // records depend on it. Check right before this specific transition
+    // rather than at booking, so online/phone booking stays frictionless.
+    if (status === 'in_room') {
+      const check = await pool.query('SELECT date_of_birth, home_address FROM bookings WHERE id = $1 AND archived = FALSE', [id]);
+      if (check.rows.length === 0) return res.status(404).json({ error: 'No active booking found.' });
+      if (!check.rows[0].date_of_birth || !check.rows[0].home_address) {
+        return res.status(400).json({
+          error: 'Add date of birth and home address for this patient before starting the visit.',
+          code: 'MISSING_PATIENT_INFO'
+        });
+      }
+    }
     const result = await pool.query(
       `UPDATE bookings
        SET visit_status = $1,
@@ -534,6 +548,16 @@ app.put('/api/invoices/:id', requireStaffAuth, async (req, res) => {
   }
   if (status && !VALID_INVOICE_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid payment status.' });
   if (insuranceStatus && !VALID_INSURANCE_STATUSES.includes(insuranceStatus)) return res.status(400).json({ error: 'Invalid insurance status.' });
+  // Same rule as online payment: a balance can't be finalized as paid (even
+  // via a manual staff entry, e.g. cash) without DOB/address on file. Checks
+  // the values being saved in this same request, since staff often add them
+  // and mark paid in one edit.
+  if (status === 'paid' && (!dateOfBirth || !homeAddress)) {
+    return res.status(400).json({
+      error: 'Add date of birth and home address before marking this balance paid.',
+      code: 'MISSING_PATIENT_INFO'
+    });
+  }
   try {
     const paidAtSql = status === 'paid' ? 'COALESCE(paid_at, NOW())' : 'NULL';
     const result = await pool.query(
@@ -594,6 +618,18 @@ app.post('/api/invoices/:id/create-payment-intent', async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'No balance found for that ID.' });
     const invoice = invoiceRowToJson(result.rows[0]);
     if (invoice.status === 'paid') return res.status(409).json({ error: 'This balance is already paid.' });
+
+    // DOB and home address are required before a balance can actually be
+    // paid — insurance billing and records depend on them, and payment is
+    // the point where this invoice becomes final. Invoices are created by
+    // staff, so if these are missing, staff need to add them (via the
+    // Balances or Patients tab) before the patient can pay.
+    if (!invoice.dateOfBirth || !invoice.homeAddress) {
+      return res.status(400).json({
+        error: 'This balance needs a date of birth and home address on file before it can be paid. Please contact the office to update your information.',
+        code: 'MISSING_PATIENT_INFO'
+      });
+    }
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(invoice.amount * 100), // Stripe uses cents, not dollars
