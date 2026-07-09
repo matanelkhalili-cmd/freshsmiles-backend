@@ -28,6 +28,10 @@ if (!RESEND_API_KEY) {
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 const EMAIL_FROM = 'Fresh Smiles Dental <appointments@freshsmilesnow.com>';
 
+// The patient-facing domain, used to build links in emails (e.g. the "pay
+// your balance" link). Overridable via env var in case the domain changes.
+const PUBLIC_SITE_URL = process.env.PUBLIC_SITE_URL || 'https://freshsmilenow.com';
+
 // Where the office itself gets notified whenever a new appointment is booked
 // (by a patient on the website, or by Rose over the phone).
 const OFFICE_EMAIL = process.env.OFFICE_EMAIL;
@@ -76,6 +80,31 @@ async function sendOfficeBookingNotification(booking, source) {
        <strong>Time:</strong> ${booking.time}<br>
        <strong>Reason:</strong> ${booking.reason || 'not given'}
      </p>`
+  );
+}
+
+// Same money-formatting the frontends use, so amounts look identical in
+// emails as they do in the browser.
+function formatMoney(n) {
+  return Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+}
+
+// Emails a patient a direct link to pay their balance, along with the
+// invoice code and amount spelled out in plain text (in case the link
+// doesn't come through, or they're reading on a device where tapping
+// links is inconvenient). Only ever called for unpaid balances — there's
+// no reason to send a "pay this" link for something already paid.
+async function sendBalanceEmail(invoice) {
+  if (!invoice.email) return;
+  const payLink = `${PUBLIC_SITE_URL}/billing.html?invoice=${encodeURIComponent(invoice.id)}`;
+  await sendEmail(
+    invoice.email,
+    `A balance is ready for you — ${formatMoney(invoice.amount)}`,
+    `<p>Hi ${(invoice.name || '').split(' ')[0] || 'there'},</p>
+     <p>A balance of <strong>${formatMoney(invoice.amount)}</strong> is ready to be paid at <strong>Fresh Smiles Dental</strong>.</p>
+     <p><strong>Invoice code:</strong> ${invoice.id}</p>
+     <p><a href="${payLink}">Click here to pay your balance</a></p>
+     <p>Or go to ${PUBLIC_SITE_URL}/billing.html and enter your invoice code above.</p>`
   );
 }
 
@@ -489,7 +518,9 @@ app.post('/api/invoices', requireStaffAuth, async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'unpaid', $8, $9, $10, $11, $12, $13) RETURNING *`,
       [id, name, phone || '', email || '', dateOfBirth || '', homeAddress || '', Number(amount), createdAt, insuranceProvider || '', insuranceMemberId || '', insuranceGroupNumber || '', insuranceNotes || '', initialInsuranceStatus]
     );
-    res.status(201).json(invoiceRowToJson(result.rows[0]));
+    const invoice = invoiceRowToJson(result.rows[0]);
+    res.status(201).json(invoice);
+    await sendBalanceEmail(invoice);
   } catch (err) {
     res.status(500).json({ error: 'Database error: ' + err.message });
   }
@@ -570,7 +601,11 @@ app.put('/api/invoices/:id', requireStaffAuth, async (req, res) => {
       [name, phone || '', email || '', dateOfBirth || '', homeAddress || '', Number(amount), status || 'unpaid', insuranceProvider || '', insuranceMemberId || '', insuranceGroupNumber || '', insuranceNotes || '', insuranceStatus || (insuranceProvider ? 'pending' : 'not_billed'), req.params.id.toUpperCase()]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'No active balance found for that ID.' });
-    res.json(invoiceRowToJson(result.rows[0]));
+    const invoice = invoiceRowToJson(result.rows[0]);
+    res.json(invoice);
+    // Only for unpaid balances — no reason to send a "pay this" link for
+    // something that was just marked paid.
+    if (invoice.status === 'unpaid') await sendBalanceEmail(invoice);
   } catch (err) {
     res.status(500).json({ error: 'Database error: ' + err.message });
   }
