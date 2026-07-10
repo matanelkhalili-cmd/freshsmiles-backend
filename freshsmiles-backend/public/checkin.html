@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fresh Smiles Dental — Check In</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F6F8F6;
+    --card: #FFFFFF;
+    --ink: #14261F;
+    --ink-soft: #4B5D55;
+    --teal: #167567;
+    --teal-light: #E3F0EA;
+    --gold: #D9A441;
+    --gold-dark: #A9791F;
+    --border: #DCE4DF;
+    --error: #B3432F;
+    --error-light: #FBEAE7;
+    --amber: #B3791F;
+    --amber-light: #FBF0DA;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Inter', sans-serif; padding: 32px 16px 64px; }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 24px; }
+  header .eyebrow { font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--teal); font-weight: 600; margin-bottom: 6px; }
+  header h1 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 30px; margin: 0 0 8px; }
+  header p { color: var(--ink-soft); margin: 0; font-size: 15px; }
+
+  .tabs { display: flex; justify-content: center; gap: 4px; margin-bottom: 24px; background: var(--teal-light); border-radius: 12px; padding: 4px; max-width: 340px; margin-left: auto; margin-right: auto; }
+  .tab { flex: 1; text-align: center; padding: 10px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 14px; color: var(--ink-soft); }
+  .tab.active { background: white; color: var(--teal); }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 28px; }
+  .card h2 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 20px; margin: 0 0 20px; }
+
+  .name-btn {
+    width: 100%; text-align: left; padding: 14px 16px; border-radius: 10px;
+    border: 1.5px solid var(--border); background: white; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-size: 15px; margin-bottom: 10px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .name-btn:hover { border-color: var(--teal); }
+  .name-btn .time { color: var(--ink-soft); font-size: 13px; }
+
+  .divider { display: flex; align-items: center; gap: 12px; margin: 24px 0; color: var(--ink-soft); font-size: 13px; }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  label { display: block; font-size: 13px; font-weight: 500; margin: 0 0 6px; color: var(--ink-soft); }
+  input[type=text] { width: 100%; padding: 11px 12px; border-radius: 10px; border: 1.5px solid var(--border); font-family: 'Inter', sans-serif; font-size: 15px; color: var(--ink); }
+  input:focus { outline: none; border-color: var(--teal); }
+
+  button.primary { font-family: 'Inter', sans-serif; font-weight: 600; font-size: 15px; padding: 12px 22px; border-radius: 10px; cursor: pointer; border: none; background: var(--gold); color: #3A2A08; width: 100%; margin-top: 14px; }
+  button.primary:hover { background: var(--gold-dark); }
+  button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.ghost { font-family: 'Inter', sans-serif; font-weight: 600; font-size: 14px; padding: 10px 16px; border-radius: 10px; cursor: pointer; border: 1.5px solid var(--border); background: transparent; color: var(--ink-soft); width: 100%; margin-top: 12px; }
+
+  .confirm-icon { width: 56px; height: 56px; border-radius: 50%; background: var(--teal-light); color: var(--teal); display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 16px; }
+  .error-note { font-size: 13px; color: var(--error); margin-top: 12px; padding: 10px 14px; background: var(--error-light); border-radius: 10px; }
+  .empty-state { text-align: center; color: var(--ink-soft); padding: 24px; font-size: 14px; }
+
+  .arrived-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; }
+  .arrived-row .name { font-weight: 600; font-size: 15px; }
+  .arrived-row .meta { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+  .wait-badge { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px; white-space: nowrap; }
+  .wait-ok { background: var(--teal-light); color: var(--teal); }
+  .wait-long { background: var(--amber-light); color: var(--amber); }
+  .refresh-note { text-align: center; font-size: 12px; color: var(--ink-soft); margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img src="logo.png" alt="Fresh Smiles Dental logo" style="width:72px; height:72px; object-fit:contain; margin-bottom:8px;">
+    <div class="eyebrow">Fresh Smiles Dental</div>
+    <h1 id="pageTitle">Check in</h1>
+    <p id="pageSub">Let us know you've arrived</p>
+  </header>
+
+  <div style="text-align:center; margin-bottom: 16px;"><a href="index.html" style="color: var(--ink-soft); font-size: 13px; text-decoration: underline;">← Back to home</a></div>
+
+  <div class="card" id="cardArea"></div>
+</div>
+
+<script>
+const API_BASE = window.location.protocol.startsWith('http') ? window.location.origin : 'https://freshsmiles-backend.onrender.com';
+
+function todayKey() {
+  const d = new Date();
+  return d.toISOString().slice(0, 10);
+}
+
+// Look up and check in for an existing appointment. Requires name, phone,
+// and date of birth to all match on the backend — this deliberately never
+// fetches or shows a list of that day's other patients.
+async function checkIn(name, phone, dateOfBirth) {
+  const res = await fetch(`${API_BASE}/api/bookings/${todayKey()}/checkin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, phone, dateOfBirth })
+  });
+  let data;
+  try {
+    data = await res.json();
+  } catch (e) {
+    throw new Error("Couldn't reach the front desk system. Please try again in a moment, or let the front desk know you've arrived.");
+  }
+  if (!res.ok) throw new Error(data.error || 'Could not check in.');
+  return data;
+}
+
+// Walk-in: no appointment on file, so there's nothing to verify against —
+// just takes a name.
+async function checkInWalkIn(name) {
+  const res = await fetch(`${API_BASE}/api/bookings/${todayKey()}/walkin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name })
+  });
+  let data;
+  try {
+    data = await res.json();
+  } catch (e) {
+    throw new Error("Couldn't reach the front desk system. Please try again in a moment, or let the front desk know you've arrived.");
+  }
+  if (!res.ok) throw new Error(data.error || 'Could not check in.');
+  return data;
+}
+
+function renderCheckInForm() {
+  const card = document.getElementById('cardArea');
+  card.innerHTML = `
+    <h2>Check in for your appointment</h2>
+    <label for="ciName">Full name</label>
+    <input type="text" id="ciName" placeholder="Jane Rivera">
+    <label for="ciPhone">Phone number</label>
+    <input type="tel" id="ciPhone" placeholder="(347) 555-0134">
+    <label for="ciDob">Date of birth</label>
+    <input type="text" id="ciDob" placeholder="MM/DD/YYYY">
+    <button class="primary" id="checkinBtn">Check in</button>
+    <div id="checkinError"></div>
+    <div class="divider">or</div>
+    <button class="ghost" id="walkInLinkBtn">First time here / no appointment</button>
+  `;
+  document.getElementById('checkinBtn').onclick = async () => {
+    const name = document.getElementById('ciName').value.trim();
+    const phone = document.getElementById('ciPhone').value.trim();
+    const dob = document.getElementById('ciDob').value.trim();
+    const errEl = document.getElementById('checkinError');
+    if (!name || !phone || !dob) {
+      errEl.innerHTML = '<div class="error-note">Please fill in your name, phone, and date of birth.</div>';
+      return;
+    }
+    const btn = document.getElementById('checkinBtn');
+    btn.disabled = true;
+    btn.textContent = 'Checking in...';
+    try {
+      const booking = await checkIn(name, phone, dob);
+      renderConfirmation(booking.name || name);
+    } catch (e) {
+      errEl.innerHTML = `<div class="error-note">${e.message}</div>`;
+      btn.disabled = false;
+      btn.textContent = 'Check in';
+    }
+  };
+  document.getElementById('walkInLinkBtn').onclick = renderWalkInForm;
+}
+
+function renderWalkInForm() {
+  const card = document.getElementById('cardArea');
+  card.innerHTML = `
+    <h2>First time here?</h2>
+    <p style="color:var(--ink-soft); font-size:14px; margin-top:-12px;">No problem — just let us know your name and we'll get you set up.</p>
+    <label for="wiName">Full name</label>
+    <input type="text" id="wiName" placeholder="Full name">
+    <button class="primary" id="walkInBtn">Check in</button>
+    <div id="walkInError"></div>
+    <button class="ghost" id="backToCheckinBtn">Back</button>
+  `;
+  document.getElementById('walkInBtn').onclick = async () => {
+    const name = document.getElementById('wiName').value.trim();
+    const errEl = document.getElementById('walkInError');
+    if (!name) {
+      errEl.innerHTML = '<div class="error-note">Enter your name to check in.</div>';
+      return;
+    }
+    const btn = document.getElementById('walkInBtn');
+    btn.disabled = true;
+    btn.textContent = 'Checking in...';
+    try {
+      const booking = await checkInWalkIn(name);
+      renderConfirmation(booking.name || name);
+    } catch (e) {
+      errEl.innerHTML = `<div class="error-note">${e.message}</div>`;
+      btn.disabled = false;
+      btn.textContent = 'Check in';
+    }
+  };
+  document.getElementById('backToCheckinBtn').onclick = renderCheckInForm;
+}
+
+function renderConfirmation(name) {
+  const card = document.getElementById('cardArea');
+  const firstName = (name || '').trim().split(' ')[0] || 'there';
+  card.innerHTML = `
+    <div class="confirm-icon">✓</div>
+    <h2 style="text-align:center;">You're checked in, ${firstName}</h2>
+    <p style="text-align:center; color:var(--ink-soft);">Have a seat — someone will be with you shortly.</p>
+    <button class="ghost" id="doneBtn">Done</button>
+  `;
+  document.getElementById('doneBtn').onclick = renderCheckInForm;
+  setTimeout(renderCheckInForm, 8000);
+}
+
+renderCheckInForm();
+</script>
+</body>
+</html>
