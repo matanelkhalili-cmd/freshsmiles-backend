@@ -34,18 +34,23 @@ const PUBLIC_SITE_URL = process.env.PUBLIC_SITE_URL || 'https://freshsmilenow.co
 
 // Where the office itself gets notified whenever a new appointment is booked
 // (by a patient on the website, or by Rose over the phone).
+// Supports multiple recipients — set OFFICE_EMAIL to a single address or a
+// comma-separated list (e.g. "you@gmail.com,office@gmail.com").
 const OFFICE_EMAIL = process.env.OFFICE_EMAIL;
-if (!OFFICE_EMAIL) {
+const OFFICE_EMAILS = OFFICE_EMAIL ? OFFICE_EMAIL.split(',').map(e => e.trim()).filter(Boolean) : [];
+if (OFFICE_EMAILS.length === 0) {
   console.warn('Warning: OFFICE_EMAIL is not set. The office will not receive new-booking notifications.');
 }
 
 // Sending an email is never allowed to break the actual booking/payment
 // request it's attached to — if Resend isn't configured yet, or the send
 // fails for any reason, we log it and move on rather than throwing.
+// `to` can be a single address or an array of addresses.
 async function sendEmail(to, subject, html) {
-  if (!resend || !to) return;
+  const recipients = Array.isArray(to) ? to.filter(Boolean) : (to ? [to] : []);
+  if (!resend || recipients.length === 0) return;
   try {
-    await resend.emails.send({ from: EMAIL_FROM, to: [to], subject, html });
+    await resend.emails.send({ from: EMAIL_FROM, to: recipients, subject, html });
   } catch (err) {
     console.error('Email send failed:', err.message);
   }
@@ -55,7 +60,7 @@ async function sendEmail(to, subject, html) {
 // happened on the website or through Rose on the phone. `source` is just
 // a label so staff can tell at a glance how the booking came in.
 async function sendOfficeBookingNotification(booking, source) {
-  if (!OFFICE_EMAIL) return;
+  if (OFFICE_EMAILS.length === 0) return;
   const dateLabel = formatDateLabel(booking.date);
   const insuranceProvider = booking.insuranceProvider || booking.insurance_provider || '';
   const insuranceMemberId = booking.insuranceMemberId || booking.insurance_member_id || '';
@@ -63,7 +68,7 @@ async function sendOfficeBookingNotification(booking, source) {
   const insuranceNotes = booking.insuranceNotes || booking.insurance_notes || '';
 
   await sendEmail(
-    OFFICE_EMAIL,
+    OFFICE_EMAILS,
     `New appointment booked — ${booking.name}, ${dateLabel}`,
     `<p>A new appointment was just booked${source ? ' (' + source + ')' : ''}:</p>
      <p>
