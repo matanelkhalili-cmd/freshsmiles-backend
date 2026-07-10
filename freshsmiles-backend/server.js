@@ -351,8 +351,13 @@ app.use(express.static(path.join(__dirname, 'public')));
 // already booked in each slot — informational only, doesn't block booking)
 app.get('/api/bookings/:date', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM bookings WHERE date = $1 AND cancelled = FALSE AND archived = FALSE ORDER BY time', [req.params.date]);
-    res.json(result.rows.map(bookingRowToJson));
+    // Public endpoint — anyone can call this without logging in, so it must
+    // never return patient names, contact info, or health info. It exists
+    // only to power the "already booked" count per time slot on
+    // booking.html. Full patient details for a date require staff auth via
+    // GET /api/bookings instead.
+    const result = await pool.query('SELECT time FROM bookings WHERE date = $1 AND cancelled = FALSE AND archived = FALSE ORDER BY time', [req.params.date]);
+    res.json(result.rows.map(r => ({ time: r.time })));
   } catch (err) {
     res.status(500).json({ error: 'Database error: ' + err.message });
   }
@@ -552,7 +557,73 @@ app.post('/api/patients/archive', requireStaffAuth, async (req, res) => {
 // booking that day, mark it arrived. If not (e.g. a walk-in with no
 // appointment), create a lightweight entry so they still show up on the
 // staff's arrived list.
+// Strips everything but digits, so "347-555-0134" and "(347) 555 0134"
+// match regardless of how a phone number was originally typed.
+function normalizeDigits(str) {
+  return (str || '').replace(/\D/g, '');
+}
+
+// DOB needs smarter handling than plain digit-stripping: "01/15/1990" and
+// "1-15-1990" are the same date, but stripped-digit comparison ("01151990"
+// vs "1151990") would wrongly treat them as different because of the
+// leading zero. Parse into month/day/year as numbers instead, so leading
+// zeros don't matter.
+function normalizeDob(str) {
+  const parts = (str || '').split(/[^\d]+/).filter(Boolean);
+  if (parts.length === 3) {
+    const [a, b, c] = parts.map(p => parseInt(p, 10));
+    return `${a}-${b}-${c}`;
+  }
+  return normalizeDigits(str);
+}
+
+// Patient: check in for an existing appointment. Requires name, phone, AND
+// date of birth to all match — not just a name, since a public page with
+// only name-matching lets anyone check in as anyone else. Matching happens
+// in JS (not SQL) so formatting differences (dashes, slashes, spaces) don't
+// cause a false mismatch. Only the single matched booking is ever returned
+// — never a list of that day's other patients.
 app.post('/api/bookings/:date/checkin', async (req, res) => {
+  const { name, phone, dateOfBirth } = req.body;
+  if (!name || !name.trim() || !phone || !phone.trim() || !dateOfBirth || !dateOfBirth.trim()) {
+    return res.status(400).json({ error: 'Name, phone, and date of birth are all required to check in.' });
+  }
+  const date = req.params.date;
+  const normName = name.trim().toLowerCase();
+  const normPhone = normalizeDigits(phone).slice(-10);
+  const normDob = normalizeDob(dateOfBirth);
+  try {
+    const dayBookings = await pool.query(
+      'SELECT * FROM bookings WHERE date = $1 AND cancelled = FALSE AND archived = FALSE',
+      [date]
+    );
+    const match = dayBookings.rows.find(row =>
+      (row.name || '').trim().toLowerCase() === normName &&
+      normalizeDigits(row.phone).slice(-10) === normPhone &&
+      normalizeDob(row.date_of_birth) === normDob
+    );
+    // Same generic message whether nothing matched at all or only some
+    // fields were right — never hint at which piece was wrong.
+    if (!match) {
+      return res.status(404).json({ error: "We couldn't find a matching appointment. Please double-check your name, phone, and date of birth, or let the front desk know you've arrived." });
+    }
+    if (!match.arrived_at) {
+      const updated = await pool.query(
+        `UPDATE bookings SET arrived_at = $1, visit_status = 'waiting' WHERE id = $2 RETURNING *`,
+        [new Date(), match.id]
+      );
+      return res.json(bookingRowToJson(updated.rows[0]));
+    }
+    return res.json(bookingRowToJson(match));
+  } catch (err) {
+    res.status(500).json({ error: 'Database error: ' + err.message });
+  }
+});
+
+// Patient: walk-in with no appointment on file (or DOB/phone were never
+// collected for their booking, so verified check-in isn't possible). No
+// matching needed here since there may be nothing to match against.
+app.post('/api/bookings/:date/walkin', async (req, res) => {
   const { name } = req.body;
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'A name is required to check in.' });
@@ -560,21 +631,6 @@ app.post('/api/bookings/:date/checkin', async (req, res) => {
   const date = req.params.date;
   const trimmedName = name.trim();
   try {
-    const existing = await pool.query(
-      'SELECT * FROM bookings WHERE date = $1 AND LOWER(TRIM(name)) = LOWER($2) AND cancelled = FALSE AND archived = FALSE',
-      [date, trimmedName]
-    );
-    if (existing.rows.length > 0) {
-      const row = existing.rows[0];
-      if (!row.arrived_at) {
-        const updated = await pool.query(
-          `UPDATE bookings SET arrived_at = $1, visit_status = 'waiting' WHERE id = $2 RETURNING *`,
-          [new Date(), row.id]
-        );
-        return res.json(bookingRowToJson(updated.rows[0]));
-      }
-      return res.json(bookingRowToJson(row));
-    }
     const now = new Date();
     const inserted = await pool.query(
       `INSERT INTO bookings (date, time, name, phone, email, reason, booked_at, arrived_at, walk_in, visit_status)
