@@ -113,6 +113,27 @@ async function sendBalanceEmail(invoice) {
   );
 }
 
+// Notifies the office whenever a patient actually pays a balance online,
+// same pattern as the new-booking notification — so staff know money came
+// in without needing to check the Balances tab. `source` distinguishes a
+// normal payment from one recovered via the Stripe webhook safety net.
+async function sendOfficePaymentNotification(invoice, source) {
+  if (OFFICE_EMAILS.length === 0) return;
+  const amountFormatted = formatMoney(invoice.amount);
+  await sendEmail(
+    OFFICE_EMAILS,
+    `Payment received — ${invoice.name}, ${amountFormatted}`,
+    `<p>A balance was just paid${source ? ' (' + source + ')' : ''}:</p>
+     <p>
+       <strong>Patient:</strong> ${invoice.name}<br>
+       <strong>Amount:</strong> ${amountFormatted}<br>
+       <strong>Invoice:</strong> ${invoice.id}<br>
+       <strong>Phone:</strong> ${invoice.phone || 'not given'}<br>
+       <strong>Email:</strong> ${invoice.email || 'not given'}
+     </p>`
+  );
+}
+
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
   console.warn('Warning: DATABASE_URL is not set. Database endpoints will fail until it is.');
@@ -254,6 +275,66 @@ function requireStaffAuth(req, res, next) {
 
 const app = express();
 app.use(cors());
+
+// Stripe webhook — the safety net for online payments. If a patient's
+// connection drops right after Stripe successfully charges them but before
+// their browser can call /confirm, this is what still marks the invoice
+// paid. Must be registered BEFORE express.json(), since Stripe's signature
+// verification needs the raw, unparsed request body — not JSON-parsed.
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+if (!STRIPE_WEBHOOK_SECRET) {
+  console.warn('Warning: STRIPE_WEBHOOK_SECRET is not set. Payments will only be recorded if the patient\'s browser successfully confirms them — set this up in Stripe + Render for a reliable backstop.');
+}
+app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  let event;
+  try {
+    if (!STRIPE_WEBHOOK_SECRET) {
+      // No signing secret configured — can't verify this request actually
+      // came from Stripe, so refuse it rather than trust it blindly.
+      return res.status(400).send('Webhook signing secret not configured.');
+    }
+    event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'], STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error('Stripe webhook signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === 'payment_intent.succeeded') {
+    const paymentIntent = event.data.object;
+    const invoiceId = paymentIntent.metadata && paymentIntent.metadata.invoiceId;
+    if (invoiceId) {
+      try {
+        // Idempotent — if the patient's browser already confirmed this
+        // payment normally, don't mark it paid (and email a receipt) again.
+        const existing = await pool.query('SELECT * FROM invoices WHERE id = $1 AND archived = FALSE', [invoiceId]);
+        if (existing.rows.length > 0 && existing.rows[0].status !== 'paid') {
+          const result = await pool.query(
+            `UPDATE invoices SET status = 'paid', paid_at = $1, stripe_payment_intent_id = $2 WHERE id = $3 AND archived = FALSE RETURNING *`,
+            [new Date(), paymentIntent.id, invoiceId]
+          );
+          const invoice = invoiceRowToJson(result.rows[0]);
+          if (invoice.email) {
+            const amountFormatted = invoice.amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+            sendEmail(
+              invoice.email,
+              `Payment received — ${amountFormatted}`,
+              `<p>Hi ${invoice.name.split(' ')[0]},</p>
+               <p>This confirms your payment to <strong>Fresh Smiles Dental</strong>:</p>
+               <p><strong>${amountFormatted}</strong> — invoice ${invoice.id}</p>
+               <p>Thank you!</p>`
+            ).catch(err => console.error('Payment receipt email failed:', err.message));
+          }
+          sendOfficePaymentNotification(invoice, 'via webhook').catch(err => console.error('Office payment notification failed:', err.message));
+        }
+      } catch (err) {
+        console.error('Stripe webhook: failed to mark invoice paid:', err.message);
+      }
+    }
+  }
+
+  res.json({ received: true });
+});
+
 app.use(express.json());
 
 // This route must come BEFORE express.static, so requesting staff.html
@@ -714,6 +795,13 @@ app.post('/api/invoices/:id/confirm', async (req, res) => {
     const existing = await pool.query('SELECT * FROM invoices WHERE id = $1 AND archived = FALSE', [req.params.id.toUpperCase()]);
     if (existing.rows.length === 0) return res.status(404).json({ error: 'No balance found for that ID.' });
 
+    // Already marked paid — most likely the Stripe webhook beat this
+    // request to it. Nothing more to do; return the current state as-is
+    // rather than re-processing and sending a duplicate receipt email.
+    if (existing.rows[0].status === 'paid') {
+      return res.json(invoiceRowToJson(existing.rows[0]));
+    }
+
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
     if (paymentIntent.status !== 'succeeded') {
       return res.status(400).json({ error: 'Payment has not succeeded yet.' });
@@ -727,15 +815,16 @@ app.post('/api/invoices/:id/confirm', async (req, res) => {
 
     if (invoice.email) {
       const amountFormatted = invoice.amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-      await sendEmail(
+      sendEmail(
         invoice.email,
         `Payment received — ${amountFormatted}`,
         `<p>Hi ${invoice.name.split(' ')[0]},</p>
          <p>This confirms your payment to <strong>Fresh Smiles Dental</strong>:</p>
          <p><strong>${amountFormatted}</strong> — invoice ${invoice.id}</p>
          <p>Thank you!</p>`
-      );
+      ).catch(err => console.error('Payment receipt email failed:', err.message));
     }
+    sendOfficePaymentNotification(invoice).catch(err => console.error('Office payment notification failed:', err.message));
   } catch (err) {
     res.status(500).json({ error: 'Could not confirm payment: ' + err.message });
   }
