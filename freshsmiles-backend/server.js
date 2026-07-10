@@ -553,10 +553,6 @@ app.post('/api/patients/archive', requireStaffAuth, async (req, res) => {
   }
 });
 
-// Check in a patient for a given date. If their name matches an existing
-// booking that day, mark it arrived. If not (e.g. a walk-in with no
-// appointment), create a lightweight entry so they still show up on the
-// staff's arrived list.
 // Strips everything but digits, so "347-555-0134" and "(347) 555 0134"
 // match regardless of how a phone number was originally typed.
 function normalizeDigits(str) {
@@ -577,18 +573,72 @@ function normalizeDob(str) {
   return normalizeDigits(str);
 }
 
+// Simple edit distance, used only to decide when a mismatch is "close
+// enough" to ask "is this you?" instead of flatly rejecting — catches a
+// realistic single-character typo without loosening the bar so much that
+// a stranger could get in by guessing.
+function levenshtein(a, b) {
+  const dp = [];
+  for (let i = 0; i <= a.length; i++) dp.push([i]);
+  for (let j = 1; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[a.length][b.length];
+}
+
 // Patient: check in for an existing appointment. Requires name, phone, AND
 // date of birth to all match — not just a name, since a public page with
 // only name-matching lets anyone check in as anyone else. Matching happens
 // in JS (not SQL) so formatting differences (dashes, slashes, spaces) don't
 // cause a false mismatch. Only the single matched booking is ever returned
 // — never a list of that day's other patients.
+// Patient: check in for an existing appointment. Requires name, phone, AND
+// date of birth to all match — not just a name, since a public page with
+// only name-matching lets anyone check in as anyone else. Matching happens
+// in JS (not SQL) so formatting differences (dashes, slashes, spaces) don't
+// cause a false mismatch. Only the single matched booking is ever returned
+// — never a list of that day's other patients.
+//
+// If nothing matches exactly, but the name matches exactly and one of
+// phone/DOB matches exactly while the other is off by a single character
+// (a realistic typo), this asks "is this you?" instead of rejecting — but
+// only ever check in for real once the frontend sends confirmBookingId,
+// which is only ever handed out after clearing that bar. If more than one
+// booking is close enough to be ambiguous, this still rejects outright
+// rather than guess which one they meant.
 app.post('/api/bookings/:date/checkin', async (req, res) => {
-  const { name, phone, dateOfBirth } = req.body;
+  const { name, phone, dateOfBirth, confirmBookingId } = req.body;
+  const date = req.params.date;
+
+  if (confirmBookingId) {
+    try {
+      const result = await pool.query(
+        'SELECT * FROM bookings WHERE id = $1 AND date = $2 AND cancelled = FALSE AND archived = FALSE',
+        [confirmBookingId, date]
+      );
+      if (result.rows.length === 0) return res.status(404).json({ error: 'That appointment could not be found.' });
+      const row = result.rows[0];
+      if (!row.arrived_at) {
+        const updated = await pool.query(
+          `UPDATE bookings SET arrived_at = $1, visit_status = 'waiting' WHERE id = $2 RETURNING *`,
+          [new Date(), row.id]
+        );
+        return res.json(bookingRowToJson(updated.rows[0]));
+      }
+      return res.json(bookingRowToJson(row));
+    } catch (err) {
+      return res.status(500).json({ error: 'Database error: ' + err.message });
+    }
+  }
+
   if (!name || !name.trim() || !phone || !phone.trim() || !dateOfBirth || !dateOfBirth.trim()) {
     return res.status(400).json({ error: 'Name, phone, and date of birth are all required to check in.' });
   }
-  const date = req.params.date;
   const normName = name.trim().toLowerCase();
   const normPhone = normalizeDigits(phone).slice(-10);
   const normDob = normalizeDob(dateOfBirth);
@@ -597,24 +647,41 @@ app.post('/api/bookings/:date/checkin', async (req, res) => {
       'SELECT * FROM bookings WHERE date = $1 AND cancelled = FALSE AND archived = FALSE',
       [date]
     );
-    const match = dayBookings.rows.find(row =>
+    const exact = dayBookings.rows.find(row =>
       (row.name || '').trim().toLowerCase() === normName &&
       normalizeDigits(row.phone).slice(-10) === normPhone &&
       normalizeDob(row.date_of_birth) === normDob
     );
-    // Same generic message whether nothing matched at all or only some
-    // fields were right — never hint at which piece was wrong.
-    if (!match) {
-      return res.status(404).json({ error: "We couldn't find a matching appointment. Please double-check your name, phone, and date of birth, or let the front desk know you've arrived." });
+    if (exact) {
+      if (!exact.arrived_at) {
+        const updated = await pool.query(
+          `UPDATE bookings SET arrived_at = $1, visit_status = 'waiting' WHERE id = $2 RETURNING *`,
+          [new Date(), exact.id]
+        );
+        return res.json(bookingRowToJson(updated.rows[0]));
+      }
+      return res.json(bookingRowToJson(exact));
     }
-    if (!match.arrived_at) {
-      const updated = await pool.query(
-        `UPDATE bookings SET arrived_at = $1, visit_status = 'waiting' WHERE id = $2 RETURNING *`,
-        [new Date(), match.id]
-      );
-      return res.json(bookingRowToJson(updated.rows[0]));
+
+    const close = dayBookings.rows.filter(row => {
+      if ((row.name || '').trim().toLowerCase() !== normName) return false;
+      const rowPhone = normalizeDigits(row.phone).slice(-10);
+      const rowDob = normalizeDob(row.date_of_birth);
+      const phoneExact = !!rowPhone && rowPhone === normPhone;
+      const dobExact = !!rowDob && rowDob === normDob;
+      const phoneClose = !phoneExact && rowPhone && levenshtein(rowPhone, normPhone) <= 1;
+      const dobClose = !dobExact && rowDob && levenshtein(rowDob, normDob) <= 1;
+      return (phoneExact && dobClose) || (dobExact && phoneClose);
+    });
+
+    if (close.length === 1) {
+      return res.json({ needsConfirmation: true, bookingId: close[0].id, name: close[0].name, time: close[0].time });
     }
-    return res.json(bookingRowToJson(match));
+
+    // Same generic message whether nothing matched at all, several
+    // ambiguous bookings were close, or only some fields were right —
+    // never hint at which piece was wrong or that multiple exist.
+    return res.status(404).json({ error: "We couldn't find a matching appointment. Please double-check your name, phone, and date of birth, or let the front desk know you've arrived." });
   } catch (err) {
     res.status(500).json({ error: 'Database error: ' + err.message });
   }
