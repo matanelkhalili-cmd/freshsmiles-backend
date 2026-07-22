@@ -962,7 +962,7 @@ app.post('/api/invoices/:id/confirm', async (req, res) => {
 // access is approved, the *inside* of these functions gets swapped to call
 // Dentrix instead — Rose's side of the contract never has to change.
 
-const VOICE_TIME_SLOTS = ['9:00 AM', '10:00 AM', '11:00 AM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM'];
+const VOICE_TIME_SLOTS = ['10:00 AM', '11:00 AM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM'];
 
 async function handleCheckAvailability(args) {
   const date = args.date;
