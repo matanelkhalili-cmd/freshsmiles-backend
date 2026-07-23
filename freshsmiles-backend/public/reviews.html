@@ -14,12 +14,12 @@
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; padding-top: 74px; }
   img { max-width: 100%; display: block; }
   a { color: inherit; }
   .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
 
-  .topbar { padding: 0; border-bottom: 1px solid var(--border); background: var(--card); }
+  .topbar { padding: 0; border-bottom: 1px solid var(--border); background: var(--card); position: fixed; top: 0; left: 0; right: 0; z-index: 1000; }
   .topbar .wrap { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 24px; max-width: 1180px; }
   .brand { display: flex; align-items: center; gap: 10px; font-family: 'Fraunces', serif; font-weight: 600; font-size: 17px; text-decoration: none; color: var(--ink); flex-shrink: 0; }
   .brand img { width: 36px; height: 36px; object-fit: contain; }
@@ -72,6 +72,25 @@
     .reviews-card { padding: 40px 24px; }
     .footer-grid { grid-template-columns: 1fr; gap: 24px; }
   }
+
+  /* --- Sticky nav, mobile hamburger, floating CTA (added) --- */
+  .hamburger { display: none; flex-direction: column; gap: 5px; background: none; border: none; cursor: pointer; padding: 8px; z-index: 1001; }
+  .hamburger span { width: 22px; height: 2px; background: var(--ink); border-radius: 2px; display: block; }
+  @media (max-width: 900px) {
+    .hamburger { display: flex; }
+    .nav-links { display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--card); flex-direction: column; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); box-shadow: 0 12px 24px -10px rgba(20,38,31,0.18); gap: 0 !important; }
+    .nav-links.open { display: flex; }
+    .nav-links a { padding: 13px 0; width: 100%; text-align: center; }
+  }
+  .floating-cta { position: fixed; bottom: 20px; right: 20px; z-index: 998; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
+  .fab { display: flex; align-items: center; gap: 8px; padding: 13px 20px; border-radius: 30px; font-weight: 700; font-size: 14px; text-decoration: none; box-shadow: 0 8px 20px -6px rgba(20,38,31,0.35); white-space: nowrap; transition: transform 0.15s ease; }
+  .fab:hover { transform: translateY(-2px); }
+  .fab-call { background: var(--teal-deep, #0E4E44); color: white; }
+  .fab-book { background: var(--gold); color: #3A2A08; }
+  @media (max-width: 480px) {
+    .fab .fab-label { display: none; }
+    .fab { padding: 14px; border-radius: 50%; }
+  }
 </style>
 </head>
 <body>
@@ -82,7 +101,7 @@
       <img src="logo.png" alt="Fresh Smiles Dental logo">
       Fresh Smiles Dental
     </a>
-    <nav class="nav-links">
+    <nav class="nav-links" id="navLinks">
       <a href="index.html">Home</a>
       <a href="services.html">Services</a>
       <a href="reviews.html" class="active">Reviews</a>
@@ -90,6 +109,7 @@
       <a href="insurance.html">Insurance</a>
       <a href="contact.html">Contact</a>
     </nav>
+    <button class="hamburger" id="navToggle" aria-label="Menu"><span></span><span></span><span></span></button>
     <div class="nav-actions">
       <a class="call" href="tel:+17183828000">&#128222; (718) 382-8000</a>
       <a class="nav-book-btn" href="booking.html">Book Now</a>
@@ -108,7 +128,7 @@
 <section class="reviews-cta">
   <div class="wrap">
     <div class="reviews-card">
-      <div class="stars">&#128172;</div>
+      <img src="photos/office-6.jpg" alt="Fresh Smiles Dental office" loading="lazy" style="width:120px; height:120px; object-fit:cover; border-radius:50%; margin: 0 auto 20px; border: 4px solid rgba(255,255,255,0.25);">
       <h2>Read our reviews on Google</h2>
       <p>We keep our reviews on Google so you're always seeing the real, unedited, most up-to-date feedback from our patients — not something we've curated ourselves.</p>
       <a class="google-btn" href="https://www.google.com/maps/place/Fresh+Smiles+Dental/@40.7058976,-73.899105,17z/data=!4m8!3m7!1s0x2e5c1b8be279de2d:0xb3c20591e88f2a72!8m2!3d40.7058976!4d-73.8965301!9m1!1b1!16s%2Fg%2F11mzndp7pw?entry=ttu" target="_blank" rel="noopener">See our Google Reviews &rarr;</a>
@@ -144,5 +164,18 @@
   </div>
 </footer>
 
+<div class="floating-cta">
+  <a href="tel:+17183828000" class="fab fab-call">&#128222; <span class="fab-label">Call Now</span></a>
+  <a href="booking.html" class="fab fab-book">&#128197; <span class="fab-label">Book Now</span></a>
+</div>
+<script>
+  var navToggle = document.getElementById('navToggle');
+  var navLinksEl = document.getElementById('navLinks');
+  if (navToggle && navLinksEl) {
+    navToggle.addEventListener('click', function() {
+      navLinksEl.classList.toggle('open');
+    });
+  }
+</script>
 </body>
 </html>

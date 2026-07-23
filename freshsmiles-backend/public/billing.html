@@ -21,7 +21,7 @@
     --error-light: #FBEAE7;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Inter', sans-serif; padding: 32px 16px 64px; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Inter', sans-serif; padding: 106px 16px 64px; }
   .wrap { max-width: 640px; margin: 0 auto; }
   header { text-align: center; margin-bottom: 24px; }
   header .eyebrow { font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--teal); font-weight: 600; margin-bottom: 6px; }
@@ -81,7 +81,7 @@
   .receipt-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
   .receipt-row:last-child { border-bottom: none; }
   .receipt-row .label { color: var(--ink-soft); }
-  .topbar { padding: 0; border-bottom: 1px solid var(--border); background: var(--card); margin: -32px -16px 32px; }
+  .topbar { padding: 0; border-bottom: 1px solid var(--border); background: var(--card); position: fixed; top: 0; left: 0; right: 0; z-index: 1000; }
   .topbar .topbar-wrap { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 20px; max-width: 1180px; margin: 0 auto; flex-wrap: wrap; }
   .topbar .brand { display: flex; align-items: center; gap: 10px; font-family: 'Fraunces', serif; font-weight: 600; font-size: 16px; text-decoration: none; color: var(--ink); flex-shrink: 0; }
   .topbar .brand img { width: 30px; height: 30px; object-fit: contain; }
@@ -108,6 +108,25 @@
   @media (max-width: 700px) {
     .footer-grid { grid-template-columns: 1fr; gap: 20px; }
   }
+
+  /* --- Sticky nav, mobile hamburger, floating CTA (added) --- */
+  .hamburger { display: none; flex-direction: column; gap: 5px; background: none; border: none; cursor: pointer; padding: 8px; z-index: 1001; }
+  .hamburger span { width: 22px; height: 2px; background: var(--ink); border-radius: 2px; display: block; }
+  @media (max-width: 900px) {
+    .hamburger { display: flex; }
+    .nav-links { display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--card); flex-direction: column; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); box-shadow: 0 12px 24px -10px rgba(20,38,31,0.18); gap: 0 !important; }
+    .nav-links.open { display: flex; }
+    .nav-links a { padding: 13px 0; width: 100%; text-align: center; }
+  }
+  .floating-cta { position: fixed; bottom: 20px; right: 20px; z-index: 998; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
+  .fab { display: flex; align-items: center; gap: 8px; padding: 13px 20px; border-radius: 30px; font-weight: 700; font-size: 14px; text-decoration: none; box-shadow: 0 8px 20px -6px rgba(20,38,31,0.35); white-space: nowrap; transition: transform 0.15s ease; }
+  .fab:hover { transform: translateY(-2px); }
+  .fab-call { background: var(--teal-deep, #0E4E44); color: white; }
+  .fab-book { background: var(--gold); color: #3A2A08; }
+  @media (max-width: 480px) {
+    .fab .fab-label { display: none; }
+    .fab { padding: 14px; border-radius: 50%; }
+  }
 </style>
 </head>
 <body>
@@ -117,7 +136,7 @@
       <img src="logo.png" alt="Fresh Smiles Dental logo">
       Fresh Smiles Dental
     </a>
-    <nav class="nav-links">
+    <nav class="nav-links" id="navLinks">
       <a href="index.html">Home</a>
       <a href="services.html">Services</a>
       <a href="reviews.html">Reviews</a>
@@ -125,6 +144,7 @@
       <a href="insurance.html">Insurance</a>
       <a href="contact.html">Contact</a>
     </nav>
+    <button class="hamburger" id="navToggle" aria-label="Menu"><span></span><span></span><span></span></button>
     <div class="nav-actions">
       <a class="call" href="tel:+17183828000">&#128222; (718) 382-8000</a>
       <a class="nav-book-btn" href="booking.html">Book Now</a>
@@ -515,5 +535,18 @@ init();
     </div>
   </div>
 </footer>
+<div class="floating-cta">
+  <a href="tel:+17183828000" class="fab fab-call">&#128222; <span class="fab-label">Call Now</span></a>
+  <a href="booking.html" class="fab fab-book">&#128197; <span class="fab-label">Book Now</span></a>
+</div>
+<script>
+  var navToggle = document.getElementById('navToggle');
+  var navLinksEl = document.getElementById('navLinks');
+  if (navToggle && navLinksEl) {
+    navToggle.addEventListener('click', function() {
+      navLinksEl.classList.toggle('open');
+    });
+  }
+</script>
 </body>
 </html>
