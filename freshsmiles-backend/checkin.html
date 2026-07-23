@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fresh Smiles Dental — Check In</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F6F8F6;
+    --card: #FFFFFF;
+    --ink: #14261F;
+    --ink-soft: #4B5D55;
+    --teal: #167567;
+    --teal-light: #E3F0EA;
+    --gold: #D9A441;
+    --gold-dark: #A9791F;
+    --border: #DCE4DF;
+    --error: #B3432F;
+    --error-light: #FBEAE7;
+    --amber: #B3791F;
+    --amber-light: #FBF0DA;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Inter', sans-serif; padding: 32px 16px 64px; }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 24px; }
+  header .eyebrow { font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--teal); font-weight: 600; margin-bottom: 6px; }
+  header h1 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 30px; margin: 0 0 8px; }
+  header p { color: var(--ink-soft); margin: 0; font-size: 15px; }
+
+  .tabs { display: flex; justify-content: center; gap: 4px; margin-bottom: 24px; background: var(--teal-light); border-radius: 12px; padding: 4px; max-width: 340px; margin-left: auto; margin-right: auto; }
+  .tab { flex: 1; text-align: center; padding: 10px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 14px; color: var(--ink-soft); }
+  .tab.active { background: white; color: var(--teal); }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 28px; }
+  .card h2 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 20px; margin: 0 0 20px; }
+
+  .name-btn {
+    width: 100%; text-align: left; padding: 14px 16px; border-radius: 10px;
+    border: 1.5px solid var(--border); background: white; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-size: 15px; margin-bottom: 10px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .name-btn:hover { border-color: var(--teal); }
+  .name-btn .time { color: var(--ink-soft); font-size: 13px; }
+
+  .divider { display: flex; align-items: center; gap: 12px; margin: 24px 0; color: var(--ink-soft); font-size: 13px; }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  label { display: block; font-size: 13px; font-weight: 500; margin: 0 0 6px; color: var(--ink-soft); }
+  input[type=text] { width: 100%; padding: 11px 12px; border-radius: 10px; border: 1.5px solid var(--border); font-family: 'Inter', sans-serif; font-size: 15px; color: var(--ink); }
+  input:focus { outline: none; border-color: var(--teal); }
+
+  button.primary { font-family: 'Inter', sans-serif; font-weight: 600; font-size: 15px; padding: 12px 22px; border-radius: 10px; cursor: pointer; border: none; background: var(--gold); color: #3A2A08; width: 100%; margin-top: 14px; }
+  button.primary:hover { background: var(--gold-dark); }
+  button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.ghost { font-family: 'Inter', sans-serif; font-weight: 600; font-size: 14px; padding: 10px 16px; border-radius: 10px; cursor: pointer; border: 1.5px solid var(--border); background: transparent; color: var(--ink-soft); width: 100%; margin-top: 12px; }
+
+  .confirm-icon { width: 56px; height: 56px; border-radius: 50%; background: var(--teal-light); color: var(--teal); display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 16px; }
+  .error-note { font-size: 13px; color: var(--error); margin-top: 12px; padding: 10px 14px; background: var(--error-light); border-radius: 10px; }
+  .empty-state { text-align: center; color: var(--ink-soft); padding: 24px; font-size: 14px; }
+
+  .arrived-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; }
+  .arrived-row .name { font-weight: 600; font-size: 15px; }
+  .arrived-row .meta { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+  .wait-badge { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px; white-space: nowrap; }
+  .wait-ok { background: var(--teal-light); color: var(--teal); }
+  .wait-long { background: var(--amber-light); color: var(--amber); }
+  .refresh-note { text-align: center; font-size: 12px; color: var(--ink-soft); margin-top: 16px; }
+  .topbar { padding: 0; border-bottom: 1px solid var(--border); background: var(--card); margin: -32px -16px 32px; }
+  .topbar .topbar-wrap { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 20px; max-width: 1180px; margin: 0 auto; flex-wrap: wrap; }
+  .topbar .brand { display: flex; align-items: center; gap: 10px; font-family: 'Fraunces', serif; font-weight: 600; font-size: 16px; text-decoration: none; color: var(--ink); flex-shrink: 0; }
+  .topbar .brand img { width: 30px; height: 30px; object-fit: contain; }
+  .topbar .nav-links { display: flex; align-items: center; gap: 20px; flex: 1; justify-content: center; flex-wrap: wrap; }
+  .topbar .nav-links a { font-size: 13.5px; font-weight: 500; color: var(--ink-soft); text-decoration: none; }
+  .topbar .nav-links a:hover { color: var(--teal); }
+  .topbar .nav-links a.active { color: var(--teal); font-weight: 600; }
+  .topbar .nav-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .topbar .call { display: flex; align-items: center; gap: 6px; text-decoration: none; font-size: 13px; font-weight: 600; color: var(--teal); white-space: nowrap; }
+  .topbar .nav-book-btn { display: inline-flex; align-items: center; white-space: nowrap; background: var(--gold); color: #3A2A08; font-weight: 700; font-size: 13px; padding: 8px 14px; border-radius: 9px; text-decoration: none; }
+  .topbar .nav-book-btn:hover { background: var(--gold-dark); }
+
+  .site-footer { background: var(--card); border-top: 1px solid var(--border); padding: 40px 0 28px; margin: 64px -16px -64px; }
+  .site-footer .footer-wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  .footer-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 28px; margin-bottom: 28px; }
+  .footer-brand { display: flex; align-items: center; gap: 10px; font-family: 'Fraunces', serif; font-weight: 600; font-size: 15px; margin-bottom: 8px; }
+  .footer-brand img { width: 28px; height: 28px; object-fit: contain; }
+  .site-footer h4 { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); margin: 0 0 10px; }
+  .site-footer .foot-col p, .site-footer .foot-col a { display: block; font-size: 13.5px; color: var(--ink-soft); text-decoration: none; margin-bottom: 5px; line-height: 1.6; }
+  .site-footer .foot-col a:hover { color: var(--teal); }
+  .site-footer .hours-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-soft); padding: 3px 0; }
+  .site-footer .hours-row span:last-child { color: var(--ink); font-weight: 500; }
+  .foot-bottom { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12px; color: var(--ink-soft); }
+  @media (max-width: 700px) {
+    .footer-grid { grid-template-columns: 1fr; gap: 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-wrap">
+    <a href="index.html" class="brand">
+      <img src="logo.png" alt="Fresh Smiles Dental logo">
+      Fresh Smiles Dental
+    </a>
+    <nav class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="services.html">Services</a>
+      <a href="reviews.html">Reviews</a>
+      <a href="faq.html">FAQ</a>
+      <a href="insurance.html">Insurance</a>
+      <a href="contact.html">Contact</a>
+    </nav>
+    <div class="nav-actions">
+      <a class="call" href="tel:+17183828000">&#128222; (718) 382-8000</a>
+      <a class="nav-book-btn" href="booking.html">Book Now</a>
+    </div>
+  </div>
+</div>
+<div class="wrap">
+  <header>
+    <img src="logo.png" alt="Fresh Smiles Dental logo" style="width:72px; height:72px; object-fit:contain; margin-bottom:8px;">
+    <div class="eyebrow">Fresh Smiles Dental</div>
+    <h1 id="pageTitle">Check in</h1>
+    <p id="pageSub">Let us know you've arrived</p>
+  </header>
+
+  <div style="text-align:center; margin-bottom: 16px;"><a href="index.html" style="color: var(--ink-soft); font-size: 13px; text-decoration: underline;">← Back to home</a></div>
+
+  <div class="card" id="cardArea"></div>
+</div>
+
+<script>
+const API_BASE = window.location.protocol.startsWith('http') ? window.location.origin : 'https://freshsmiles-backend.onrender.com';
+
+// Auto-formats phone/DOB fields as the person types raw digits, so they
+// never have to type the parentheses/dashes/slashes themselves. Matched by
+// input id via event delegation, so this automatically covers every
+// current phone/DOB field on the page with no per-field wiring needed.
+function formatPhoneInput(value) {
+  const digits = value.replace(/\D/g, '').slice(0, 10);
+  if (digits.length === 0) return '';
+  if (digits.length < 4) return '(' + digits;
+  if (digits.length < 7) return '(' + digits.slice(0, 3) + ') ' + digits.slice(3);
+  return '(' + digits.slice(0, 3) + ') ' + digits.slice(3, 6) + '-' + digits.slice(6);
+}
+function formatDobInput(value) {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return digits.slice(0, 2) + '/' + digits.slice(2);
+  return digits.slice(0, 2) + '/' + digits.slice(2, 4) + '/' + digits.slice(4);
+}
+document.addEventListener('input', (e) => {
+  const id = (e.target && e.target.id) || '';
+  if (!id || e.target.tagName !== 'INPUT') return;
+  if (/dob|dateofbirth/i.test(id)) {
+    e.target.value = formatDobInput(e.target.value);
+  } else if (/phone/i.test(id)) {
+    e.target.value = formatPhoneInput(e.target.value);
+  }
+});
+
+function todayKey() {
+  const d = new Date();
+  return d.toISOString().slice(0, 10);
+}
+
+// Look up and check in for an existing appointment. Requires name, phone,
+// and date of birth to all match on the backend — this deliberately never
+// fetches or shows a list of that day's other patients. May return either
+// a checked-in booking, or { needsConfirmation: true, ... } if it's a close
+// but not exact match.
+async function checkIn(name, phone, dateOfBirth) {
+  const res = await fetch(`${API_BASE}/api/bookings/${todayKey()}/checkin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, phone, dateOfBirth })
+  });
+  let data;
+  try {
+    data = await res.json();
+  } catch (e) {
+    throw new Error("Couldn't reach the front desk system. Please try again in a moment, or let the front desk know you've arrived.");
+  }
+  if (!res.ok) throw new Error(data.error || 'Could not check in.');
+  return data;
+}
+
+// Second step of the "is this you?" flow — confirms a specific booking by
+// ID rather than re-sending whatever the patient typed.
+async function confirmCheckIn(bookingId) {
+  const res = await fetch(`${API_BASE}/api/bookings/${todayKey()}/checkin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ confirmBookingId: bookingId })
+  });
+  let data;
+  try {
+    data = await res.json();
+  } catch (e) {
+    throw new Error("Couldn't reach the front desk system. Please try again in a moment, or let the front desk know you've arrived.");
+  }
+  if (!res.ok) throw new Error(data.error || 'Could not check in.');
+  return data;
+}
+
+// Walk-in: no appointment on file, so there's nothing to verify against —
+// just takes a name.
+async function checkInWalkIn(name) {
+  const res = await fetch(`${API_BASE}/api/bookings/${todayKey()}/walkin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name })
+  });
+  let data;
+  try {
+    data = await res.json();
+  } catch (e) {
+    throw new Error("Couldn't reach the front desk system. Please try again in a moment, or let the front desk know you've arrived.");
+  }
+  if (!res.ok) throw new Error(data.error || 'Could not check in.');
+  return data;
+}
+
+function renderCheckInForm() {
+  const card = document.getElementById('cardArea');
+  card.innerHTML = `
+    <h2>Check in for your appointment</h2>
+    <label for="ciName">Full name</label>
+    <input type="text" id="ciName" placeholder="Jane Rivera">
+    <label for="ciPhone">Phone number</label>
+    <input type="tel" id="ciPhone" placeholder="(347) 555-0134">
+    <label for="ciDob">Date of birth</label>
+    <input type="text" id="ciDob" placeholder="MM/DD/YYYY">
+    <button class="primary" id="checkinBtn">Check in</button>
+    <div id="checkinError"></div>
+    <div class="divider">or</div>
+    <button class="ghost" id="walkInLinkBtn">First time here / no appointment</button>
+  `;
+  document.getElementById('checkinBtn').onclick = async () => {
+    const name = document.getElementById('ciName').value.trim();
+    const phone = document.getElementById('ciPhone').value.trim();
+    const dob = document.getElementById('ciDob').value.trim();
+    const errEl = document.getElementById('checkinError');
+    if (!name || !phone || !dob) {
+      errEl.innerHTML = '<div class="error-note">Please fill in your name, phone, and date of birth.</div>';
+      return;
+    }
+    const btn = document.getElementById('checkinBtn');
+    btn.disabled = true;
+    btn.textContent = 'Checking in...';
+    try {
+      const result = await checkIn(name, phone, dob);
+      if (result.needsConfirmation) {
+        renderIsThisYou(result.bookingId, result.name, result.time);
+      } else {
+        renderConfirmation(result.name || name);
+      }
+    } catch (e) {
+      errEl.innerHTML = `<div class="error-note">${e.message}</div>`;
+      btn.disabled = false;
+      btn.textContent = 'Check in';
+    }
+  };
+  document.getElementById('walkInLinkBtn').onclick = renderWalkInForm;
+}
+
+function renderIsThisYou(bookingId, name, time) {
+  const card = document.getElementById('cardArea');
+  card.innerHTML = `
+    <h2>Is this you?</h2>
+    <p style="color:var(--ink-soft); font-size:15px; margin-top:-8px;">We found a close match, but a couple details didn't line up exactly.</p>
+    <div class="arrived-row" style="margin-top:16px;">
+      <div>
+        <div class="name">${name}</div>
+        <div class="meta">${time}</div>
+      </div>
+    </div>
+    <button class="primary" id="confirmYesBtn">Yes, that's me</button>
+    <button class="ghost" id="confirmNoBtn">No, try again</button>
+    <div id="confirmError"></div>
+  `;
+  document.getElementById('confirmYesBtn').onclick = async () => {
+    const errEl = document.getElementById('confirmError');
+    const btn = document.getElementById('confirmYesBtn');
+    btn.disabled = true;
+    btn.textContent = 'Checking in...';
+    try {
+      const booking = await confirmCheckIn(bookingId);
+      renderConfirmation(booking.name || name);
+    } catch (e) {
+      errEl.innerHTML = `<div class="error-note">${e.message}</div>`;
+      btn.disabled = false;
+      btn.textContent = "Yes, that's me";
+    }
+  };
+  document.getElementById('confirmNoBtn').onclick = renderCheckInForm;
+}
+
+function renderWalkInForm() {
+  const card = document.getElementById('cardArea');
+  card.innerHTML = `
+    <h2>First time here?</h2>
+    <p style="color:var(--ink-soft); font-size:14px; margin-top:-12px;">No problem — just let us know your name and we'll get you set up.</p>
+    <label for="wiName">Full name</label>
+    <input type="text" id="wiName" placeholder="Full name">
+    <button class="primary" id="walkInBtn">Check in</button>
+    <div id="walkInError"></div>
+    <button class="ghost" id="backToCheckinBtn">Back</button>
+  `;
+  document.getElementById('walkInBtn').onclick = async () => {
+    const name = document.getElementById('wiName').value.trim();
+    const errEl = document.getElementById('walkInError');
+    if (!name) {
+      errEl.innerHTML = '<div class="error-note">Enter your name to check in.</div>';
+      return;
+    }
+    const btn = document.getElementById('walkInBtn');
+    btn.disabled = true;
+    btn.textContent = 'Checking in...';
+    try {
+      const booking = await checkInWalkIn(name);
+      renderConfirmation(booking.name || name);
+    } catch (e) {
+      errEl.innerHTML = `<div class="error-note">${e.message}</div>`;
+      btn.disabled = false;
+      btn.textContent = 'Check in';
+    }
+  };
+  document.getElementById('backToCheckinBtn').onclick = renderCheckInForm;
+}
+
+function renderConfirmation(name) {
+  const card = document.getElementById('cardArea');
+  const firstName = (name || '').trim().split(' ')[0] || 'there';
+  card.innerHTML = `
+    <div class="confirm-icon">✓</div>
+    <h2 style="text-align:center;">You're checked in, ${firstName}</h2>
+    <p style="text-align:center; color:var(--ink-soft);">Have a seat — someone will be with you shortly.</p>
+    <button class="ghost" id="doneBtn">Done</button>
+  `;
+  document.getElementById('doneBtn').onclick = renderCheckInForm;
+  setTimeout(renderCheckInForm, 8000);
+}
+
+renderCheckInForm();
+</script>
+<footer class="site-footer">
+  <div class="footer-wrap">
+    <div class="footer-grid">
+      <div class="foot-col">
+        <div class="footer-brand">
+          <img src="logo.png" alt="Fresh Smiles Dental logo">
+          Fresh Smiles Dental
+        </div>
+        <p>General, orthodontic, pediatric, and oral surgery care in Ridgewood, Queens.</p>
+      </div>
+      <div class="foot-col">
+        <h4>Get in touch</h4>
+        <a href="tel:+17183828000">(718) 382-8000</a>
+        <a href="https://www.google.com/maps/dir/?api=1&destination=67-09+Fresh+Pond+Rd,+Ridgewood,+NY+11385" target="_blank" rel="noopener">67-09 Fresh Pond Rd, Ridgewood, NY</a>
+      </div>
+      <div class="foot-col">
+        <h4>Hours</h4>
+        <div class="hours-row"><span>Monday – Friday</span><span>10:00 AM – 5:30 PM</span></div>
+        <div class="hours-row"><span>Saturday</span><span>Closed</span></div>
+        <div class="hours-row"><span>Sunday</span><span>10:00 AM – 4:00 PM</span></div>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      &copy; 2026 Fresh Smiles Dental. Ridgewood, Queens.
+    </div>
+  </div>
+</footer>
+</body>
+</html>
