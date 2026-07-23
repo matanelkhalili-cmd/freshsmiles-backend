@@ -202,6 +202,7 @@
     <nav class="nav-links" id="navLinks">
       <a href="index.html">Home</a>
       <a href="services.html">Services</a>
+      <a href="about.html">About</a>
       <a href="reviews.html">Reviews</a>
       <a href="faq.html">FAQ</a>
       <a href="insurance.html">Insurance</a>
@@ -247,16 +248,31 @@ const state = {
 
 function getNextWeekdays(count) {
   const days = [];
+  const now = new Date();
   let d = new Date();
-  d.setDate(d.getDate() + 1);
+  // Only skip today if we're already at/past the last bookable slot (5 PM).
+  if (now.getHours() >= 17) {
+    d.setDate(d.getDate() + 1);
+  }
   while (days.length < count) {
     const day = d.getDay();
-    if (day !== 0 && day !== 6) {
+    if (day !== 6) { // Saturday is the only fully closed day — Sunday is open 10-4.
       days.push(new Date(d));
     }
     d.setDate(d.getDate() + 1);
   }
   return days;
+}
+
+function timeSlotToMinutes(t) {
+  const match = t.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!match) return 0;
+  let [, h, m, ap] = match;
+  h = parseInt(h, 10);
+  m = parseInt(m, 10);
+  if (ap.toUpperCase() === 'PM' && h !== 12) h += 12;
+  if (ap.toUpperCase() === 'AM' && h === 12) h = 0;
+  return h * 60 + m;
 }
 
 function formatDateKey(d) {
@@ -267,7 +283,7 @@ function formatDateLabel(d) {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-const TIME_SLOTS = ['10:00 AM','11:00 AM','1:00 PM','2:00 PM','3:00 PM','4:00 PM'];
+const TIME_SLOTS = ['10:00 AM','11:00 AM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM'];
 
 const API_BASE = window.location.protocol.startsWith('http') ? window.location.origin : 'https://freshsmiles-backend.onrender.com';
 
@@ -393,10 +409,16 @@ async function renderCard() {
     const countByTime = {};
     bookings.forEach(b => { countByTime[b.time] = (countByTime[b.time] || 0) + 1; });
     const dateObj = new Date(state.date + 'T00:00:00');
+    const isToday = state.date === formatDateKey(new Date());
+    const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+    const availableSlots = isToday ? TIME_SLOTS.filter(t => timeSlotToMinutes(t) > nowMinutes) : TIME_SLOTS;
     card.innerHTML = '<h2>Choose a time — ' + formatDateLabel(dateObj) + '</h2><div class="time-grid" id="timeGrid"></div>' +
       '<div class="actions"><button class="ghost" id="backBtn">Back</button><span></span></div>';
     const grid = document.getElementById('timeGrid');
-    TIME_SLOTS.forEach(t => {
+    if (availableSlots.length === 0) {
+      grid.innerHTML = '<div class="empty-state">No more times available today — please choose another day.</div>';
+    }
+    availableSlots.forEach(t => {
       const count = countByTime[t] || 0;
       const btn = document.createElement('div');
       btn.className = 'pick-btn' + (state.time === t ? ' selected' : '');
@@ -540,7 +562,7 @@ renderCard();
       </div>
       <div class="foot-col">
         <h4>Hours</h4>
-        <div class="hours-row"><span>Monday – Friday</span><span>10:00 AM – 5:30 PM</span></div>
+        <div class="hours-row"><span>Monday – Friday</span><span>10:00 AM – 6:00 PM</span></div>
         <div class="hours-row"><span>Saturday</span><span>Closed</span></div>
         <div class="hours-row"><span>Sunday</span><span>10:00 AM – 4:00 PM</span></div>
       </div>
