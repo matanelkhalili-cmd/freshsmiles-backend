@@ -41,7 +41,15 @@
   .page-hero h1 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 38px; margin: 0 0 14px; }
   .page-hero p { color: var(--ink-soft); font-size: 16px; max-width: 560px; margin: 0 auto; line-height: 1.6; }
 
-  .reviews-cta { padding: 48px 0 80px; }
+  .reviews-cta { padding: 8px 0 64px; }
+  .review-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; margin-bottom: 40px; }
+  .review-card { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 26px; }
+  .review-card .stars-row { color: var(--gold); font-size: 14px; margin-bottom: 12px; letter-spacing: 2px; }
+  .review-card p.quote { color: var(--ink); font-size: 14.5px; line-height: 1.65; margin: 0 0 18px; }
+  .review-card .reviewer { display: flex; align-items: center; gap: 10px; }
+  .review-card .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--teal-light); color: var(--teal-deep); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex-shrink: 0; }
+  .review-card .reviewer-name { font-weight: 600; font-size: 13.5px; }
+  .review-card .reviewer-meta { font-size: 12px; color: var(--ink-soft); }
   .reviews-card {
     background: var(--teal-deep); border-radius: 24px; padding: 56px 40px; color: white;
     text-align: center; max-width: 640px; margin: 0 auto;
@@ -122,16 +130,85 @@
   <div class="wrap">
     <div class="eyebrow">What patients say</div>
     <h1>Reviews from real patients.</h1>
-    <p>The most current, verified reviews live on our Google Business profile — see what neighbors in Ridgewood have to say.</p>
+    <p>A few of our favorites from real patients — see the full list on Google.</p>
   </div>
 </section>
 
 <section class="reviews-cta">
   <div class="wrap">
+    <div class="review-grid">
+      <div class="review-card">
+        <div class="stars-row">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p class="quote">"Took my son here and had such a great experience. The office was super clean, the staff was so kind and welcoming, and everything felt really organized. The dentist was very gentle and patient, which made such a difference. Overall, we had a really positive visit and I'm so happy we found this place!"</p>
+        <div class="reviewer">
+          <div class="avatar">P</div>
+          <div>
+            <div class="reviewer-name">Paulina Raciborski</div>
+            <div class="reviewer-meta">3 months ago</div>
+          </div>
+        </div>
+      </div>
+      <div class="review-card">
+        <div class="stars-row">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p class="quote">"Great experience with this pediatric dentist. The doctor was very kind, patient, and gentle with my child, making the visit stress-free. The clinic is clean and the staff are friendly. Highly recommend for anyone looking for a great dentist for kids."</p>
+        <div class="reviewer">
+          <div class="avatar">A</div>
+          <div>
+            <div class="reviewer-name">Ammar Saleh</div>
+            <div class="reviewer-meta">2 months ago</div>
+          </div>
+        </div>
+      </div>
+      <div class="review-card">
+        <div class="stars-row">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p class="quote">"Five stars! This is an incredible pediatric dentist. From the moment we walked in, the atmosphere was welcoming and fun. My daughter had a blessed time and felt so comfortable. The staff is incredibly professional and knows exactly how to work with children. Highly recommend for any parent!"</p>
+        <div class="reviewer">
+          <div class="avatar">K</div>
+          <div>
+            <div class="reviewer-name">Katarzyna Suska</div>
+            <div class="reviewer-meta">Local Guide · 3 months ago</div>
+          </div>
+        </div>
+      </div>
+      <div class="review-card">
+        <div class="stars-row">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p class="quote">"The place is very clean, modern, and lovely. The doctor was very nice and polite, and he explained everything very nicely about what is going on with my kid's teeth. The lady at the front desk is very nice and welcoming. I highly recommend this place."</p>
+        <div class="reviewer">
+          <div class="avatar">D</div>
+          <div>
+            <div class="reviewer-name">Dorota</div>
+            <div class="reviewer-meta">3 months ago</div>
+          </div>
+        </div>
+      </div>
+      <div class="review-card">
+        <div class="stars-row">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p class="quote">"I had a wonderful experience bringing my 3 year old daughter in for her first dental appointment. The office is spotless and equipped with brand new, state of the art technology, which made me feel very comfortable right away. I arrived much earlier than my scheduled time, and they were still able to accommodate us and see us immediately — something I really appreciated. Every member of the team was incredibly kind, patient, and understanding with my daughter, making her feel at ease throughout the visit. Overall, it was a smooth and positive experience. I will definitely be recommending this office to friends and family, and we look forward to returning in 6 months!"</p>
+        <div class="reviewer">
+          <div class="avatar">J</div>
+          <div>
+            <div class="reviewer-name">Jaylin Carrasquillo</div>
+            <div class="reviewer-meta">2 months ago</div>
+          </div>
+        </div>
+      </div>
+      <div class="review-card">
+        <div class="stars-row">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p class="quote">"I really do not like to go to the dentist but going to this facility was the best I've ever been to and I am 62 years old. Great job guys you all lovely and professional. Thank you."</p>
+        <div class="reviewer">
+          <div class="avatar">J</div>
+          <div>
+            <div class="reviewer-name">Joan Innamorato</div>
+            <div class="reviewer-meta">2 months ago</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="reviews-card">
-      <img src="office-6.jpg" alt="Fresh Smiles Dental office" loading="lazy" style="width:120px; height:120px; object-fit:cover; border-radius:50%; margin: 0 auto 20px; border: 4px solid rgba(255,255,255,0.25);">
-      <h2>Read our reviews on Google</h2>
-      <p>We keep our reviews on Google so you're always seeing the real, unedited, most up-to-date feedback from our patients — not something we've curated ourselves.</p>
+      <img src="office-6.jpg" alt="Fresh Smiles Dental office" loading="lazy" style="width:100px; height:100px; object-fit:cover; border-radius:50%; margin: 0 auto 18px; border: 4px solid rgba(255,255,255,0.25);">
+      <h2>Read more on Google</h2>
+      <p>These are just a few of our favorites — see the full, unedited list on our Google Business profile.</p>
       <a class="google-btn" href="https://www.google.com/maps/place/Fresh+Smiles+Dental/@40.7058976,-73.899105,17z/data=!4m8!3m7!1s0x2e5c1b8be279de2d:0xb3c20591e88f2a72!8m2!3d40.7058976!4d-73.8965301!9m1!1b1!16s%2Fg%2F11mzndp7pw?entry=ttu" target="_blank" rel="noopener">See our Google Reviews &rarr;</a>
     </div>
   </div>
