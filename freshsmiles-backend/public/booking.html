@@ -33,7 +33,7 @@
     font-size: 13px;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--teal);
+    color: var(--gold);
     font-weight: 600;
     margin-bottom: 6px;
   }
@@ -42,8 +42,9 @@
     font-weight: 500;
     font-size: 32px;
     margin: 0 0 8px;
+    color: white;
   }
-  header p { color: var(--ink-soft); margin: 0; font-size: 15px; }
+  header p { color: rgba(255,255,255,0.85); margin: 0; font-size: 15px; }
 
   .steps {
     display: flex;
@@ -60,7 +61,7 @@
     border: 1.5px solid var(--border);
     color: var(--ink-soft);
   }
-  .step-dot.active { background: var(--teal); border-color: var(--teal); color: white; }
+  .step-dot.active { background: var(--gold); border-color: var(--gold); color: #3A2A08; }
   .step-dot.done { background: var(--teal-light); border-color: var(--teal); color: var(--teal); }
   .step-line { width: 32px; height: 1.5px; background: var(--border); align-self: center; }
 
@@ -223,7 +224,7 @@
     <p>Ridgewood, Queens — pick a time that works for you</p>
   </header>
 
-  <div style="text-align:center; margin-bottom: 16px;"><a href="index.html" style="color: var(--ink-soft); font-size: 13px; text-decoration: underline;">← Back to home</a></div>
+  <div style="text-align:center; margin-bottom: 16px;"><a href="index.html" style="color: rgba(255,255,255,0.85); font-size: 13px; text-decoration: underline;">← Back to home</a></div>
 
   <div class="steps" id="stepDots"></div>
 
