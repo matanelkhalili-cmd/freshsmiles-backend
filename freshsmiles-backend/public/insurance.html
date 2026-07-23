@@ -83,9 +83,10 @@
   .fab:hover { transform: translateY(-2px); }
   .fab-call { background: var(--teal-deep, #0E4E44); color: white; }
   .fab-book { background: var(--gold); color: #3A2A08; }
-  @media (max-width: 480px) {
-    .fab .fab-label { display: none; }
-    .fab { padding: 14px; border-radius: 50%; }
+  @media (max-width: 640px) {
+    .floating-cta { left: 16px; right: 16px; bottom: 16px; flex-direction: row; gap: 12px; align-items: stretch; }
+    .fab { flex: 1; justify-content: center; border-radius: 16px; padding: 16px 10px; font-size: 15px; box-shadow: 0 8px 20px -4px rgba(20,38,31,0.3); }
+    .fab .fab-label { display: inline; }
   }
 </style>
 </head>
