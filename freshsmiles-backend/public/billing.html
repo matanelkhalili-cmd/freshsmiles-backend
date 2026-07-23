@@ -114,8 +114,8 @@
   .hamburger span { width: 22px; height: 2px; background: var(--ink); border-radius: 2px; display: block; }
   @media (max-width: 900px) {
     .hamburger { display: flex; }
-    .nav-links { display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--card); flex-direction: column; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); box-shadow: 0 12px 24px -10px rgba(20,38,31,0.18); gap: 0 !important; }
-    .nav-links.open { display: flex; }
+    .topbar .nav-links { display: none !important; position: absolute; top: 100%; left: 0; right: 0; background: var(--card); flex-direction: column; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); box-shadow: 0 12px 24px -10px rgba(20,38,31,0.18); gap: 0 !important; }
+    .topbar .nav-links.open { display: flex !important; }
     .nav-links a { padding: 13px 0; width: 100%; text-align: center; }
   }
   .floating-cta { position: fixed; bottom: 20px; right: 20px; z-index: 998; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
