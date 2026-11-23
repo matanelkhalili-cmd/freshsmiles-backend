@@ -1250,9 +1250,13 @@ app.post('/api/vapi/cancel-appointment', async (req, res) => {
   }
 });
 
+// Post-visit review texts (see reviews.js)
+const reviews = require('./reviews')({ app, pool, requireStaffAuth, sendEmail, OFFICE_EMAILS, PUBLIC_SITE_URL, timeSlotToMinutes });
+
 const PORT = process.env.PORT || 3000;
 initDB()
   .then(() => {
+    reviews.start();
     app.listen(PORT, () => console.log(`Fresh Smiles backend running on port ${PORT}`));
   })
   .catch(err => {
