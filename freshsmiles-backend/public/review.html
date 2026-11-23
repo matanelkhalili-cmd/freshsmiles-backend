@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>How was your visit? — Fresh Smiles Dental</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: #167567; font-family: 'Inter', sans-serif; color: #14261F; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .card { background: #fff; border-radius: 18px; padding: 36px 28px; max-width: 440px; width: 100%; text-align: center; }
+  img.logo { width: 64px; height: 64px; object-fit: contain; margin-bottom: 8px; }
+  h1 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 26px; margin: 8px 0 6px; }
+  p { color: #4B5D55; line-height: 1.5; margin: 0 0 18px; }
+  .stars { display: flex; justify-content: center; gap: 6px; margin: 18px 0 6px; }
+  .star { font-size: 48px; line-height: 1; background: none; border: none; cursor: pointer; color: #DCE4DF; padding: 2px; transition: transform .1s; }
+  .star.on { color: #D9A441; }
+  .star:hover { transform: scale(1.12); }
+  textarea { width: 100%; min-height: 90px; border: 1.5px solid #DCE4DF; border-radius: 10px; padding: 11px; font: inherit; resize: vertical; margin-bottom: 12px; }
+  button.go { background: #D9A441; color: #3A2A08; border: none; border-radius: 10px; font: 600 15px 'Inter', sans-serif; padding: 12px 22px; cursor: pointer; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <img class="logo" src="logo.png" alt="Fresh Smiles Dental">
+
+  <div id="ask">
+    <h1 id="hello">How was your visit?</h1>
+    <p>Tap a star to rate your appointment at Fresh Smiles Dental.</p>
+    <div class="stars" id="stars"></div>
+  </div>
+
+  <div id="high" class="hidden">
+    <h1>Thank you!</h1>
+    <p id="highMsg">We're so glad you had a great visit. Taking you to Google so you can share it…</p>
+  </div>
+
+  <div id="low" class="hidden">
+    <h1>Okay, we'll let them know.</h1>
+    <p>Thank you for telling us. If you'd like to share what happened, we'll read every word.</p>
+    <textarea id="comment" placeholder="Optional: what could we have done better?"></textarea>
+    <button class="go" id="send">Send</button>
+    <p id="pubWrap" class="hidden" style="margin:20px 0 0;font-size:13px;">You can also <a id="pubLink" href="#" style="color:#167567;">share your experience publicly on Google</a>.</p>
+  </div>
+
+  <div id="done" class="hidden">
+    <h1>Thank you.</h1>
+    <p>Your feedback has been shared with the team.</p>
+  </div>
+
+  <div id="bad" class="hidden">
+    <h1>Link not found</h1>
+    <p>This link may have expired. Please call us at (718) 382-8000.</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  var token = new URLSearchParams(location.search).get('t');
+  var $ = function (id) { return document.getElementById(id); };
+  function show(id) { ['ask','high','low','done','bad'].forEach(function (x) { $(x).classList.toggle('hidden', x !== id); }); }
+  if (!token) return show('bad');
+
+  var stars = $('stars');
+  for (var i = 1; i <= 5; i++) {
+    (function (n) {
+      var b = document.createElement('button');
+      b.className = 'star'; b.textContent = '★'; b.setAttribute('aria-label', n + ' stars');
+      b.onmouseenter = function () { paint(n); };
+      b.onclick = function () { submit(n); };
+      stars.appendChild(b);
+    })(i);
+  }
+  stars.onmouseleave = function () { paint(0); };
+  function paint(n) { Array.prototype.forEach.call(stars.children, function (s, idx) { s.classList.toggle('on', idx < n); }); }
+
+  fetch('/api/review/' + token).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+    .then(function (x) {
+      if (!x.ok) return show('bad');
+      if (x.j.googleUrl) { $('pubLink').href = x.j.googleUrl; $('pubWrap').classList.remove('hidden'); }
+      $('hello').textContent = 'Hi ' + x.j.firstName + ', how was your visit?';
+      if (x.j.rating) { show(x.j.rating >= 4 ? 'high' : 'done'); if (x.j.rating >= 4) $('highMsg').textContent = 'Thanks again for your feedback!'; }
+    }).catch(function () { show('bad'); });
+
+  function submit(n) {
+    fetch('/api/review/' + token, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rating: n }) })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j.ok) return show('bad');
+        if (j.high) {
+          show('high');
+          if (j.redirect) setTimeout(function () { location.href = j.redirect; }, 1200);
+          else $('highMsg').textContent = "We're so glad you had a great visit. Thank you!";
+        } else show('low');
+      }).catch(function () { show('bad'); });
+  }
+
+  $('send').onclick = function () {
+    var c = $('comment').value.trim();
+    if (!c) return show('done');
+    fetch('/api/review/' + token, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comment: c }) })
+      .then(function () { show('done'); }).catch(function () { show('done'); });
+  };
+})();
+</script>
+</body>
+</html>
