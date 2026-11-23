@@ -200,7 +200,7 @@ module.exports = function ({ app, pool, requireStaffAuth, sendEmail, OFFICE_EMAI
     );
   }
 
-  // ---- Staff endpoints ----
+  require('./reviews-public')({ app, pool, notifyLow, GOOGLE_REVIEW_URL, crypto });   // ---- Staff endpoints ----
   app.post('/api/reviews/send', requireStaffAuth, async (req, res) => {
     const name = String(req.body.name || '').trim();
     const phone = String(req.body.phone || '').trim();
