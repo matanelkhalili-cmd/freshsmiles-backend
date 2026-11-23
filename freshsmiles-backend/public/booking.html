@@ -17,6 +17,7 @@
     --gold: #D9A441;
     --gold-dark: #A9791F;
     --border: #DCE4DF;
+    --error: #B3432F;
   }
   * { box-sizing: border-box; }
   body {
@@ -28,11 +29,121 @@
   }
   .wrap { max-width: 640px; margin: 0 auto; }
   header { text-align: center; margin-bottom: 32px; }
-  header .eyebrow { font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gold); font-weight: 600; margin-bottom: 6px; }
-  header h1 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 32px; margin: 0 0 8px; color: white; }
+  header .eyebrow {
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--gold);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  header h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 32px;
+    margin: 0 0 8px;
+    color: white;
+  }
   header p { color: rgba(255,255,255,0.85); margin: 0; font-size: 15px; }
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 28px; }
 
+  .steps {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+  .step-dot {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600;
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    color: var(--ink-soft);
+  }
+  .step-dot.active { background: var(--gold); border-color: var(--gold); color: #3A2A08; }
+  .step-dot.done { background: var(--teal-light); border-color: var(--teal); color: var(--teal); }
+  .step-line { width: 32px; height: 1.5px; background: var(--border); align-self: center; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+  }
+  .card h2 {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 20px;
+    margin: 0 0 20px;
+  }
+
+  .date-grid, .time-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 10px;
+  }
+  .pick-btn {
+    padding: 12px 8px;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: white;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    text-align: center;
+    transition: all 0.12s ease;
+  }
+  .pick-btn:hover { border-color: var(--teal); }
+  .pick-btn.selected { background: var(--teal); border-color: var(--teal); color: white; }
+  .pick-btn.taken { opacity: 0.35; cursor: not-allowed; text-decoration: line-through; }
+  .pick-btn .sub { display: block; font-size: 11px; color: inherit; opacity: 0.7; margin-top: 2px; }
+
+  label { display: block; font-size: 13px; font-weight: 500; margin: 16px 0 6px; color: var(--ink-soft); }
+  input[type=text], input[type=tel], input[type=email], textarea {
+    width: 100%;
+    padding: 11px 12px;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    color: var(--ink);
+  }
+  input:focus, textarea:focus { outline: none; border-color: var(--teal); }
+  textarea { resize: vertical; min-height: 70px; }
+
+  .actions { display: flex; justify-content: space-between; margin-top: 24px; gap: 12px; }
+  button.primary, button.ghost {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    padding: 12px 22px;
+    border-radius: 10px;
+    cursor: pointer;
+    border: none;
+  }
+  button.primary { background: var(--gold); color: #3A2A08; }
+  button.primary:hover { background: var(--gold-dark); }
+  button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.ghost { background: transparent; border: 1.5px solid var(--border); color: var(--ink-soft); }
+  button.ghost:hover { border-color: var(--ink-soft); }
+
+  .summary-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-row .label { color: var(--ink-soft); }
+
+  .confirm-icon { width: 56px; height: 56px; border-radius: 50%; background: var(--teal-light); color: var(--teal); display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 16px; }
+
+  .note { font-size: 13px; color: var(--ink-soft); margin-top: 20px; padding: 12px 14px; background: var(--teal-light); border-radius: 10px; }
+
+  .office-link { text-align: center; margin-top: 28px; }
+  .office-link a { color: var(--ink-soft); font-size: 13px; text-decoration: underline; cursor: pointer; }
+
+  .office-panel { margin-top: 16px; }
+  .booking-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; font-size: 14px; }
+  .booking-row .when { font-weight: 600; }
+  .booking-row .who { color: var(--ink-soft); }
+  .empty-state { text-align: center; color: var(--ink-soft); padding: 24px; font-size: 14px; }
   .topbar { padding: 0; border-bottom: 1px solid var(--border); background: var(--card); position: fixed; top: 0; left: 0; right: 0; z-index: 1000; }
   .topbar .topbar-wrap { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 20px; max-width: 1180px; margin: 0 auto; flex-wrap: wrap; }
   .topbar .brand { display: flex; align-items: center; gap: 10px; font-family: 'Fraunces', serif; font-weight: 600; font-size: 16px; text-decoration: none; color: var(--ink); flex-shrink: 0; }
@@ -40,6 +151,7 @@
   .topbar .nav-links { display: flex; align-items: center; gap: 20px; flex: 1; justify-content: center; flex-wrap: wrap; }
   .topbar .nav-links a { font-size: 13.5px; font-weight: 500; color: var(--ink-soft); text-decoration: none; }
   .topbar .nav-links a:hover { color: var(--teal); }
+  .topbar .nav-links a.active { color: var(--teal); font-weight: 600; }
   .topbar .nav-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
   .topbar .call { display: flex; align-items: center; gap: 6px; text-decoration: none; font-size: 13px; font-weight: 600; color: var(--teal); white-space: nowrap; }
   .topbar .nav-book-btn { display: inline-flex; align-items: center; white-space: nowrap; background: var(--gold); color: #3A2A08; font-weight: 700; font-size: 13px; padding: 8px 14px; border-radius: 9px; text-decoration: none; }
@@ -56,8 +168,11 @@
   .site-footer .hours-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-soft); padding: 3px 0; }
   .site-footer .hours-row span:last-child { color: var(--ink); font-weight: 500; }
   .foot-bottom { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12px; color: var(--ink-soft); }
-  @media (max-width: 700px) { .footer-grid { grid-template-columns: 1fr; gap: 20px; } }
+  @media (max-width: 700px) {
+    .footer-grid { grid-template-columns: 1fr; gap: 20px; }
+  }
 
+  /* --- Sticky nav, mobile hamburger, floating CTA (added) --- */
   .hamburger { display: none; flex-direction: column; gap: 5px; background: none; border: none; cursor: pointer; padding: 8px; z-index: 1001; }
   .hamburger span { width: 22px; height: 2px; background: var(--ink); border-radius: 2px; display: block; }
   @media (max-width: 900px) {
@@ -69,11 +184,12 @@
   .floating-cta { position: fixed; bottom: 20px; right: 20px; z-index: 998; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
   .fab { display: flex; align-items: center; gap: 8px; padding: 13px 20px; border-radius: 30px; font-weight: 700; font-size: 14px; text-decoration: none; box-shadow: 0 8px 20px -6px rgba(20,38,31,0.35); white-space: nowrap; transition: transform 0.15s ease; }
   .fab:hover { transform: translateY(-2px); }
-  .fab-call { background: #0E4E44; color: white; }
+  .fab-call { background: var(--teal-deep, #0E4E44); color: white; }
   .fab-book { background: var(--gold); color: #3A2A08; }
   @media (max-width: 640px) {
     .floating-cta { left: 16px; right: 16px; bottom: 16px; flex-direction: row; gap: 12px; align-items: stretch; }
     .fab { flex: 1; justify-content: center; border-radius: 16px; padding: 16px 10px; font-size: 15px; box-shadow: 0 8px 20px -4px rgba(20,38,31,0.3); }
+    .fab .fab-label { display: inline; }
   }
 </style>
 </head>
@@ -113,8 +229,12 @@
   <div class="card" style="padding:0; overflow:hidden;">
     <iframe id="ascendBooking" title="Book an appointment at Fresh Smiles Dental"
       src="https://schedule.jarvisanalytics.com/frame?eoid=68546&elid=64000000021919"
-      style="width:100%; height:820px; border:0; display:block;"></iframe>
+      style="width:100%; height:820px; border:0; display:block;" loading="eager"></iframe>
   </div>
+  <p style="text-align:center; font-size:13px; line-height:1.5; color:rgba(255,255,255,0.85); margin:14px 0 0;">
+    By booking an appointment and providing your mobile number, you agree to receive text messages from Fresh Smiles Dental, including a post-visit message asking you to rate your appointment. Message frequency is low. Message and data rates may apply. Reply STOP to opt out or HELP for help.
+    See our <a href="privacy.html" style="color:#fff; text-decoration:underline;">Privacy Policy</a> and <a href="terms.html" style="color:#fff; text-decoration:underline;">Terms &amp; Conditions</a>.
+  </p>
   <p style="text-align:center; font-size:13px; color:rgba(255,255,255,0.85); margin-top:14px;">
     Prefer to talk to someone? Call <a href="tel:+17183828000" style="color:inherit;">(718) 382-8000</a>.
   </p>
