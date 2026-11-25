@@ -8,7 +8,7 @@
 <style>
   body { font-family: system-ui, sans-serif; background: #167567; color: #222; text-align: center; padding: 60px 16px; }
   button.book { background: #D9A441; color: #3A2A08; border: none; border-radius: 12px; font: 700 17px system-ui, sans-serif; padding: 16px 30px; cursor: pointer; }
-  #status { margin-top: 24px; font-size: 14px; opacity: .9; }
+  #status { margin-top: 24px; font-size: 14px; }
 </style>
 <script src="https://schedule.jarvisanalytics.com/js/init.min.js"></script>
 <script>
@@ -55,33 +55,37 @@ var jarvis = new JarvisAnalyticsScheduler({
     return t.replace(/\s+/g, ' ').trim();
   }
 
-  function hideBookingFor() {
-    var found = false;
+  function radios(el) { return el.querySelectorAll('input[type=radio]').length; }
+
+  function hideOption(el) {
+    var p = el, n = 0;
+    while (p && radios(p) === 0 && n < 4) { p = p.parentElement; n++; }
+    if (!p || radios(p) === 0) return false;
+    while (p.parentElement && p.parentElement !== document.body && radios(p.parentElement) <= 1) {
+      p = p.parentElement;
+    }
+    p.style.display = 'none';
+    p.dataset.hiddenByFs = '1';
+    return true;
+  }
+
+  function sweep() {
     eachNode(document, function (el) {
-      if (el.dataset && el.dataset.hiddenByFs) return;
+      if (el.dataset && el.dataset.fsDone) return;
       var t = ownText(el);
-      if (t === 'Booking for') {
-        el.style.display = 'none'; el.dataset.hiddenByFs = '1'; found = true;
-      }
-      var all = (el.textContent || '').replace(/\s+/g, ' ');
-      if (all.indexOf('Myself') > -1 && all.indexOf('Someone Else') > -1 &&
-          all.indexOf('Adult') === -1 && all.indexOf('Child') === -1 &&
-          all.indexOf('New Patient') === -1 && all.length < 60) {
-        el.style.display = 'none'; el.dataset.hiddenByFs = '1'; found = true;
+      if (t === 'Myself' || t === 'Someone Else') {
+        el.dataset.fsDone = '1';
+        if (hideOption(el)) hiddenCount++;
       }
     });
-    if (found) hiddenCount++;
-    return found;
   }
 
   setInterval(function () {
     var s = document.getElementById('status');
-    var formThere = /Booking for|Select one|Which location/.test(document.body.innerText) || document.querySelectorAll('iframe').length > 0;
-    var did = hideBookingFor();
-    if (did) s.textContent = 'OK: the "Booking for" question was found and hidden.';
-    else if (hiddenCount > 0) s.textContent = 'OK: "Booking for" is hidden.';
-    else if (formThere) s.textContent = 'The form is open but "Booking for" was not found in the page (it may be inside a sealed box).';
-  }, 400);
+    sweep();
+    if (hiddenCount > 0) s.textContent = 'OK: hid ' + hiddenCount + ' option(s) (Myself / Someone Else).';
+    else if (document.body.innerText.indexOf('Select one') > -1) s.textContent = 'Form is open but Myself / Someone Else was not found.';
+  }, 300);
 })();
 </script>
 </body>
