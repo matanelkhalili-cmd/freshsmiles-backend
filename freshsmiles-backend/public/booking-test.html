@@ -8,7 +8,7 @@
 <style>
   body { font-family: system-ui, sans-serif; background: #167567; color: #222; text-align: center; padding: 60px 16px; }
   button.book { background: #D9A441; color: #3A2A08; border: none; border-radius: 12px; font: 700 17px system-ui, sans-serif; padding: 16px 30px; cursor: pointer; }
-  #status { margin-top: 24px; font-size: 14px; }
+  #status { position: fixed; left: 8px; bottom: 8px; z-index: 2147483647; background: #fff; color: #000; border: 2px solid #c00; padding: 6px 8px; font: 11px/1.3 monospace; text-align: left; max-width: 90vw; white-space: pre-wrap; }
   [data-fs-hide] { display: none !important; }
 </style>
 <script src="https://schedule.jarvisanalytics.com/js/init.min.js"></script>
@@ -34,13 +34,13 @@ var jarvis = new JarvisAnalyticsScheduler({
 <h1>Booking test page</h1>
 <p>Click the button, then look at the first screen of the form.</p>
 <button type="button" class="book" onclick="jarvis.toggle()">Book an Appointment</button>
-<div id="status">Waiting for the form to open…</div>
+<div id="status">v5 loaded. Waiting for the form…</div>
 
 <script>
 (function () {
-  var TARGETS = ['Myself', 'Someone Else', 'Booking for'];
+  var TARGETS = ['myself', 'someone else', 'booking for'];
 
-  function norm(s) { return (s || '').replace(/[\s\u00a0]+/g, ' ').trim(); }
+  function norm(s) { return (s || '').replace(/[\s\u00a0]+/g, ' ').trim().toLowerCase(); }
 
   function eachNode(root, fn) {
     var nodes = root.querySelectorAll('*');
@@ -50,48 +50,63 @@ var jarvis = new JarvisAnalyticsScheduler({
     }
   }
 
-  function isRadioOnly(el) {
-    if (!el) return false;
-    if (el.matches && el.matches('input[type=radio]')) return true;
-    return norm(el.textContent) === '' && el.querySelectorAll('input[type=radio]').length > 0;
-  }
-
   function hide(el) {
     el.setAttribute('data-fs-hide', '1');
     el.style.setProperty('display', 'none', 'important');
   }
 
-  function chain(el) {
-    var parts = [], p = el;
-    for (var i = 0; i < 3 && p; i++) { parts.push(p.tagName); p = p.parentElement; }
-    return parts.join('>');
+  function topBlock(el, tc) {
+    var p = el;
+    while (p.parentElement && norm(p.parentElement.textContent) === tc) p = p.parentElement;
+    return p;
   }
 
-  var lastChain = '';
-
   function sweep() {
-    var count = 0;
-    eachNode(document, function (el) {
-      if (el.closest && el.closest('#status')) return;
-      var tc = norm(el.textContent);
-      if (TARGETS.indexOf(tc) === -1) return;
-      var parent = el.parentElement;
-      if (parent && norm(parent.textContent) === tc) return; // not the top-most block
-      hide(el);
-      if (isRadioOnly(el.previousElementSibling)) hide(el.previousElementSibling);
-      if (isRadioOnly(el.nextElementSibling)) hide(el.nextElementSibling);
-      lastChain = tc + ' = ' + chain(el);
-      count++;
-    });
-    return count;
+    var hidden = 0, report = [];
+    try {
+      // 1) by text
+      eachNode(document, function (el) {
+        if (el.closest && el.closest('#status')) return;
+        var tc = norm(el.textContent);
+        if (TARGETS.indexOf(tc) === -1) return;
+        var top = topBlock(el, tc);
+        hide(top);
+        var prev = top.previousElementSibling, next = top.nextElementSibling;
+        [prev, next].forEach(function (s) {
+          if (s && norm(s.textContent) === '' && (s.matches('input[type=radio]') || s.querySelector('input[type=radio]'))) hide(s);
+        });
+        hidden++;
+      });
+      // 2) by radio button: climb from each circle to the block that holds only its label
+      var all = [];
+      eachNode(document, function (el) { if (el.matches && el.matches('input[type=radio]')) all.push(el); });
+      all.forEach(function (r) {
+        var p = r, tc = '', n = 0;
+        while (p && n < 6) {
+          tc = norm(p.textContent);
+          if (tc !== '') break;
+          p = p.parentElement; n++;
+        }
+        var info = (tc || '(no text)') + ' | val=' + (r.value || '') + ' id=' + (r.id || '') + ' name=' + (r.name || '') + (r.checked ? ' CHECKED' : '');
+        if (p && TARGETS.indexOf(tc) > -1) {
+          hide(topBlock(p, tc));
+          var q = r;
+          while (q.parentElement && norm(q.parentElement.textContent) === tc) q = q.parentElement;
+          hide(q);
+          info += ' -> hidden';
+          hidden++;
+        }
+        report.push(info);
+      });
+    } catch (e) { report.push('ERROR: ' + e.message); }
+    return { hidden: hidden, report: report };
   }
 
   setInterval(function () {
     var s = document.getElementById('status');
-    var c = sweep();
-    if (c > 0) s.textContent = 'OK: hiding ' + c + ' item(s). Last: ' + lastChain;
-    else if (document.body.innerText.indexOf('Select one') > -1) s.textContent = 'Form is open but nothing to hide was found.';
-  }, 250);
+    var r = sweep();
+    if (r.report.length || r.hidden) s.textContent = 'v5 | hid ' + r.hidden + '\n' + r.report.join('\n');
+  }, 300);
 })();
 </script>
 </body>
