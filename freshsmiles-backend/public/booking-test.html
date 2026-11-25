@@ -9,6 +9,7 @@
   body { font-family: system-ui, sans-serif; background: #167567; color: #222; text-align: center; padding: 60px 16px; }
   button.book { background: #D9A441; color: #3A2A08; border: none; border-radius: 12px; font: 700 17px system-ui, sans-serif; padding: 16px 30px; cursor: pointer; }
   #status { margin-top: 24px; font-size: 14px; }
+  [data-fs-hide] { display: none !important; }
 </style>
 <script src="https://schedule.jarvisanalytics.com/js/init.min.js"></script>
 <script>
@@ -37,8 +38,6 @@ var jarvis = new JarvisAnalyticsScheduler({
 
 <script>
 (function () {
-  var hiddenCount = 0;
-
   function eachNode(root, fn) {
     var nodes = root.querySelectorAll('*');
     for (var i = 0; i < nodes.length; i++) {
@@ -57,6 +56,11 @@ var jarvis = new JarvisAnalyticsScheduler({
 
   function radios(el) { return el.querySelectorAll('input[type=radio]').length; }
 
+  function hide(el) {
+    el.setAttribute('data-fs-hide', '1');
+    el.style.setProperty('display', 'none', 'important');
+  }
+
   function hideOption(el) {
     var p = el, n = 0;
     while (p && radios(p) === 0 && n < 4) { p = p.parentElement; n++; }
@@ -64,28 +68,29 @@ var jarvis = new JarvisAnalyticsScheduler({
     while (p.parentElement && p.parentElement !== document.body && radios(p.parentElement) <= 1) {
       p = p.parentElement;
     }
-    p.style.display = 'none';
-    p.dataset.hiddenByFs = '1';
+    hide(p);
     return true;
   }
 
   function sweep() {
+    var count = 0;
     eachNode(document, function (el) {
-      if (el.dataset && el.dataset.fsDone) return;
       var t = ownText(el);
       if (t === 'Myself' || t === 'Someone Else') {
-        el.dataset.fsDone = '1';
-        if (hideOption(el)) hiddenCount++;
+        if (hideOption(el)) count++;
+      } else if (t === 'Booking for') {
+        hide(el); count++;
       }
     });
+    return count;
   }
 
   setInterval(function () {
     var s = document.getElementById('status');
-    sweep();
-    if (hiddenCount > 0) s.textContent = 'OK: hid ' + hiddenCount + ' option(s) (Myself / Someone Else).';
-    else if (document.body.innerText.indexOf('Select one') > -1) s.textContent = 'Form is open but Myself / Someone Else was not found.';
-  }, 300);
+    var c = sweep();
+    if (c > 0) s.textContent = 'OK: hiding ' + c + ' item(s) (Booking for / Myself / Someone Else).';
+    else if (document.body.innerText.indexOf('Select one') > -1) s.textContent = 'Form is open but nothing to hide was found.';
+  }, 250);
 })();
 </script>
 </body>
