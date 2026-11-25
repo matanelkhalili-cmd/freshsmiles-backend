@@ -181,7 +181,7 @@
     .topbar .nav-links.open { display: flex !important; }
     .nav-links a { padding: 13px 0; width: 100%; text-align: center; }
   }
-  .floating-cta { position: fixed; bottom: 20px; right: 20px; z-index: 998; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
+  .floating-cta { z-index: 10 !important; position: fixed; bottom: 20px; right: 20px; z-index: 998; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
   .fab { display: flex; align-items: center; gap: 8px; padding: 13px 20px; border-radius: 30px; font-weight: 700; font-size: 14px; text-decoration: none; box-shadow: 0 8px 20px -6px rgba(20,38,31,0.35); white-space: nowrap; transition: transform 0.15s ease; }
   .fab:hover { transform: translateY(-2px); }
   .fab-call { background: var(--teal-deep, #0E4E44); color: white; }
