@@ -38,6 +38,10 @@ var jarvis = new JarvisAnalyticsScheduler({
 
 <script>
 (function () {
+  var TARGETS = ['Myself', 'Someone Else', 'Booking for'];
+
+  function norm(s) { return (s || '').replace(/[\s\u00a0]+/g, ' ').trim(); }
+
   function eachNode(root, fn) {
     var nodes = root.querySelectorAll('*');
     for (var i = 0; i < nodes.length; i++) {
@@ -46,41 +50,38 @@ var jarvis = new JarvisAnalyticsScheduler({
     }
   }
 
-  function ownText(el) {
-    var t = '';
-    for (var i = 0; i < el.childNodes.length; i++) {
-      if (el.childNodes[i].nodeType === 3) t += el.childNodes[i].nodeValue;
-    }
-    return t.replace(/\s+/g, ' ').trim();
+  function isRadioOnly(el) {
+    if (!el) return false;
+    if (el.matches && el.matches('input[type=radio]')) return true;
+    return norm(el.textContent) === '' && el.querySelectorAll('input[type=radio]').length > 0;
   }
-
-  function radios(el) { return el.querySelectorAll('input[type=radio]').length; }
 
   function hide(el) {
     el.setAttribute('data-fs-hide', '1');
     el.style.setProperty('display', 'none', 'important');
   }
 
-  function hideOption(el) {
-    var p = el, n = 0;
-    while (p && radios(p) === 0 && n < 4) { p = p.parentElement; n++; }
-    if (!p || radios(p) === 0) return false;
-    while (p.parentElement && p.parentElement !== document.body && radios(p.parentElement) <= 1) {
-      p = p.parentElement;
-    }
-    hide(p);
-    return true;
+  function chain(el) {
+    var parts = [], p = el;
+    for (var i = 0; i < 3 && p; i++) { parts.push(p.tagName); p = p.parentElement; }
+    return parts.join('>');
   }
+
+  var lastChain = '';
 
   function sweep() {
     var count = 0;
     eachNode(document, function (el) {
-      var t = ownText(el);
-      if (t === 'Myself' || t === 'Someone Else') {
-        if (hideOption(el)) count++;
-      } else if (t === 'Booking for') {
-        hide(el); count++;
-      }
+      if (el.closest && el.closest('#status')) return;
+      var tc = norm(el.textContent);
+      if (TARGETS.indexOf(tc) === -1) return;
+      var parent = el.parentElement;
+      if (parent && norm(parent.textContent) === tc) return; // not the top-most block
+      hide(el);
+      if (isRadioOnly(el.previousElementSibling)) hide(el.previousElementSibling);
+      if (isRadioOnly(el.nextElementSibling)) hide(el.nextElementSibling);
+      lastChain = tc + ' = ' + chain(el);
+      count++;
     });
     return count;
   }
@@ -88,7 +89,7 @@ var jarvis = new JarvisAnalyticsScheduler({
   setInterval(function () {
     var s = document.getElementById('status');
     var c = sweep();
-    if (c > 0) s.textContent = 'OK: hiding ' + c + ' item(s) (Booking for / Myself / Someone Else).';
+    if (c > 0) s.textContent = 'OK: hiding ' + c + ' item(s). Last: ' + lastChain;
     else if (document.body.innerText.indexOf('Select one') > -1) s.textContent = 'Form is open but nothing to hide was found.';
   }, 250);
 })();
