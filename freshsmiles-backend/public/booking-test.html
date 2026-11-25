@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Booking test — Fresh Smiles Dental</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #167567; color: #fff; text-align: center; padding: 60px 16px; }
+  button.book { background: #D9A441; color: #3A2A08; border: none; border-radius: 12px; font: 700 17px system-ui, sans-serif; padding: 16px 30px; cursor: pointer; }
+  #status { margin-top: 24px; font-size: 14px; opacity: .9; }
+</style>
+<script src="https://schedule.jarvisanalytics.com/js/init.min.js"></script>
+<script>
+var jarvis = new JarvisAnalyticsScheduler({
+  token: "812039|I6rPJNEgor8ZSXXE7YYySiTL3gSicLRN1MOHluVbb8e6a076",
+  locationId: "2721795401517309",
+  companyId: "2160",
+  title: "Book your appointment",
+  showLogo: 1,
+  showPhoneNumber: true,
+  showAddress: true,
+  modalMode: true,
+  colors: {
+    primaryButtonBackground: "#D9A441",
+    headerBackground: "#FFFFFF",
+    bodyBackground: "#F6F8F6"
+  }
+});
+</script>
+</head>
+<body>
+<h1>Booking test page</h1>
+<p>Click the button, then look at the first screen of the form.</p>
+<button type="button" class="book" onclick="jarvis.toggle()">Book an Appointment</button>
+<div id="status">Waiting for the form to open…</div>
+
+<script>
+(function () {
+  var hiddenCount = 0;
+
+  function eachNode(root, fn) {
+    var nodes = root.querySelectorAll('*');
+    for (var i = 0; i < nodes.length; i++) {
+      fn(nodes[i]);
+      if (nodes[i].shadowRoot) eachNode(nodes[i].shadowRoot, fn);
+    }
+  }
+
+  function ownText(el) {
+    var t = '';
+    for (var i = 0; i < el.childNodes.length; i++) {
+      if (el.childNodes[i].nodeType === 3) t += el.childNodes[i].nodeValue;
+    }
+    return t.replace(/\s+/g, ' ').trim();
+  }
+
+  function hideBookingFor() {
+    var found = false;
+    eachNode(document, function (el) {
+      if (el.dataset && el.dataset.hiddenByFs) return;
+      var t = ownText(el);
+      if (t === 'Booking for') {
+        el.style.display = 'none'; el.dataset.hiddenByFs = '1'; found = true;
+      }
+      var all = (el.textContent || '').replace(/\s+/g, ' ');
+      if (all.indexOf('Myself') > -1 && all.indexOf('Someone Else') > -1 &&
+          all.indexOf('Adult') === -1 && all.indexOf('Child') === -1 &&
+          all.indexOf('New Patient') === -1 && all.length < 60) {
+        el.style.display = 'none'; el.dataset.hiddenByFs = '1'; found = true;
+      }
+    });
+    if (found) hiddenCount++;
+    return found;
+  }
+
+  setInterval(function () {
+    var s = document.getElementById('status');
+    var formThere = /Booking for|Select one|Which location/.test(document.body.innerText) || document.querySelectorAll('iframe').length > 0;
+    var did = hideBookingFor();
+    if (did) s.textContent = 'OK: the "Booking for" question was found and hidden.';
+    else if (hiddenCount > 0) s.textContent = 'OK: "Booking for" is hidden.';
+    else if (formThere) s.textContent = 'The form is open but "Booking for" was not found in the page (it may be inside a sealed box).';
+  }, 400);
+})();
+</script>
+</body>
+</html>
