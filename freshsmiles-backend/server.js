@@ -99,7 +99,7 @@ function formatMoney(n) {
 // doesn't come through, or they're reading on a device where tapping
 // links is inconvenient). Only ever called for unpaid balances — there's
 // no reason to send a "pay this" link for something already paid.
-async function sendBalanceEmail(invoice) {
+async function sendBalanceEmail(invoice) { if (await require('./balance-sms')(invoice, PUBLIC_SITE_URL, formatMoney)) return;
   if (!invoice.email) return;
   const payLink = `${PUBLIC_SITE_URL}/billing.html?invoice=${encodeURIComponent(invoice.id)}`;
   await sendEmail(
