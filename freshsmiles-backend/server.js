@@ -251,14 +251,32 @@ function invoiceRowToJson(row) {
 const STAFF_USERNAME = process.env.STAFF_USERNAME || 'staff';
 const STAFF_PASSWORD = process.env.STAFF_PASSWORD;
 
+const crypto = require('crypto');
+// Staff sign-in cookie (lets staff log in with a normal form instead of the
+// browser's Basic-auth popup). Stateless: an HMAC of the staff password, so
+// changing STAFF_PASSWORD signs everyone out.
+function staffCookieValue() {
+  return crypto.createHmac('sha256', STAFF_PASSWORD || 'x').update('fs-staff-session').digest('hex');
+}
+function hasStaffCookie(req) {
+  const m = /(?:^|;\s*)fs_staff=([a-f0-9]+)/.exec(req.headers.cookie || '');
+  if (!m || !STAFF_PASSWORD) return false;
+  const a = Buffer.from(m[1]);
+  const b = Buffer.from(staffCookieValue());
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 function requireStaffAuth(req, res, next) {
   if (!STAFF_PASSWORD) {
     // Fail closed: if no password has been configured, staff routes are
     // locked out entirely rather than silently left open.
     return res.status(503).send('Staff area is not yet configured. Set STAFF_PASSWORD on the server.');
   }
+  if (hasStaffCookie(req)) return next();
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Basic ')) {
+    if (req.method === 'GET' && !req.originalUrl.startsWith('/api') && req.accepts('html')) {
+      return res.redirect('/staff-login?next=' + encodeURIComponent(req.originalUrl));
+    }
     res.set('WWW-Authenticate', 'Basic realm="Fresh Smiles Staff"');
     return res.status(401).send('Authentication required.');
   }
@@ -275,6 +293,33 @@ function requireStaffAuth(req, res, next) {
 
 const app = express();
 app.use(cors());
+
+// Staff sign-in page (password form) — sets the fs_staff cookie.
+const staffLoginFails = new Map();
+function staffLoginPage(next, msg) {
+  const safeNext = /^\/[A-Za-z0-9_\-\/.?=&%]*$/.test(next || '') && !String(next).startsWith('//') ? next : '/staff.html';
+  return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Staff sign in</title><style>body{font-family:system-ui,sans-serif;background:#F6F8F6;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}form{background:#fff;padding:32px;border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,.08);width:300px}h1{font-size:20px;margin:0 0 16px;color:#14261F}input{width:100%;box-sizing:border-box;padding:12px;border:1px solid #DCE4DF;border-radius:8px;font-size:16px;margin-bottom:12px}button{width:100%;padding:12px;background:#167567;color:#fff;border:0;border-radius:8px;font-size:16px;cursor:pointer}p{color:#B3432F;font-size:14px;margin:0 0 12px}</style></head><body><form method="post" action="/staff-login"><h1>Fresh Smiles Staff</h1>' + (msg ? '<p>' + msg + '</p>' : '') + '<input type="password" name="password" placeholder="Staff password" autofocus autocomplete="current-password"><input type="hidden" name="next" value="' + safeNext + '"><button>Sign in</button></form></body></html>';
+}
+app.get('/staff-login', (req, res) => {
+  res.type('html').send(staffLoginPage(req.query.next, ''));
+});
+app.post('/staff-login', express.urlencoded({ extended: false }), (req, res) => {
+  if (!STAFF_PASSWORD) return res.status(503).send('Staff area is not yet configured.');
+  const ip = req.ip || 'x';
+  const rec = staffLoginFails.get(ip) || { n: 0, t: Date.now() };
+  if (Date.now() - rec.t > 15 * 60 * 1000) { rec.n = 0; rec.t = Date.now(); }
+  if (rec.n >= 10) return res.status(429).type('html').send(staffLoginPage(req.body.next, 'Too many attempts. Try again in 15 minutes.'));
+  const a = Buffer.from(String(req.body.password || ''));
+  const b = Buffer.from(STAFF_PASSWORD);
+  if (a.length === b.length && crypto.timingSafeEqual(a, b)) {
+    staffLoginFails.delete(ip);
+    res.set('Set-Cookie', 'fs_staff=' + staffCookieValue() + '; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax');
+    const n = String(req.body.next || '');
+    return res.redirect(/^\/[A-Za-z0-9_\-\/.?=&%]*$/.test(n) && !n.startsWith('//') ? n : '/staff.html');
+  }
+  rec.n++; staffLoginFails.set(ip, rec);
+  res.status(401).type('html').send(staffLoginPage(req.body.next, 'Wrong password.'));
+});
 
 // Stripe webhook — the safety net for online payments. If a patient's
 // connection drops right after Stripe successfully charges them but before
